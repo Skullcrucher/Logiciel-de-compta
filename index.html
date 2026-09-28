@@ -63,6 +63,15 @@
   nav.tabs button:hover{ color:var(--ink); }
   nav.tabs button.active{ color:var(--green); border-bottom-color:var(--green); }
 
+  .subtab-btn{
+    font-family: var(--font-display); font-size:14px; background:none; border:none; color:var(--muted);
+    padding:9px 14px; margin-right:18px; cursor:pointer; border-bottom:3px solid transparent;
+  }
+  .subtab-btn:hover{ color:var(--ink); }
+  .subtab-btn.active{ color:var(--green); border-bottom-color:var(--green); }
+  .budget-subview{ display:none; }
+  .budget-subview.active{ display:block; }
+
   .toolbar{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
 
   section.view{ display:none; }
@@ -415,101 +424,159 @@
 
   <!-- ============ BUDGET ============ -->
   <section class="view" id="view-budget">
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0;">Budget du mois</h2>
-        <select id="budgetMonthPicker" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
-      </div>
-      <p class="sub">Ce que vous avez prévu de dépenser ce mois-ci, poste par poste, et ce qu'il en reste.</p>
-      <div id="budgetSummary"></div>
-      <div id="budgetMonthlyList"></div>
-      <div id="budgetMonthlyEmpty" class="empty">Aucun budget mensuel défini — utilisez « Gérer mes budgets » ci-dessous pour en créer un.</div>
-    </div>
-
-    <div class="card">
-      <h2 style="margin:0 0 4px;">Clôture du mois</h2>
-      <p class="sub">Ce qui a été dépassé (à compenser le mois prochain) ou ce qu'il reste (à reporter ou mettre de côté) — comme les enveloppes budgétaires.</p>
-      <div id="budgetMonthCloseList"></div>
-      <div id="budgetMonthCloseEmpty" class="empty">Rien à clôturer pour ce mois pour l'instant.</div>
-    </div>
-
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0;">Suivi annuel</h2>
-        <select id="budgetYearPicker" onchange="renderBudgetTracking()" style="max-width:120px;"></select>
-      </div>
-      <div id="budgetAnnualList"></div>
-      <div id="budgetAnnualEmpty" class="empty">Aucun budget annuel défini.</div>
-    </div>
-
     <div class="card" id="budgetTotalsCard">
       <h2 style="font-size:15px; margin-bottom:8px;">Total des budgets</h2>
       <div id="budgetTotalsBox"></div>
       <div id="budgetTotalsEmpty" class="empty">Aucun budget défini pour le moment.</div>
     </div>
 
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0;">Gérer mes budgets</h2>
-        <button class="btn secondary small" onclick="exportBudgetPdf()">📄 Exporter le bilan en PDF</button>
+    <nav class="tabs" style="position:static; padding-top:0; margin-bottom:16px;">
+      <button class="subtab-btn active" data-subtab="monthly" onclick="showBudgetSubTab('monthly')">Budget mensuel</button>
+      <button class="subtab-btn" data-subtab="annual" onclick="showBudgetSubTab('annual')">Budget annuel</button>
+      <button class="subtab-btn" data-subtab="close" onclick="showBudgetSubTab('close')">Bilan mensuel</button>
+    </nav>
+
+    <!-- ---- Sous-onglet : Budget mensuel ---- -->
+    <div class="budget-subview active" id="budgetSub-monthly">
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0;">Budget mensuel</h2>
+          <select id="budgetMonthPicker" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
+        </div>
+        <p class="sub">Ce que vous avez prévu de dépenser ce mois-ci, poste par poste, et ce qu'il en reste.</p>
+        <div id="budgetSummary"></div>
+        <div id="budgetMonthlyList"></div>
+        <div id="budgetMonthlyEmpty" class="empty">Aucun budget mensuel défini — ajoutez-en un ci-dessous.</div>
       </div>
-      <p class="sub">Sur une catégorie principale entière (tous ses sous-postes cumulés) ou sur une sous-catégorie précise, mensuel ou annuel.</p>
-      <div class="grid-form">
-        <div class="field">
-          <label>Portée</label>
-          <select id="budgetScopeType" onchange="renderBudgetScopeOptions()">
-            <option value="group">Catégorie principale (tous les sous-postes)</option>
-            <option value="category">Sous-catégorie précise</option>
-          </select>
+      <div class="card">
+        <h2 style="margin:0 0 4px;">Ajouter / gérer un budget mensuel</h2>
+        <p class="sub">Sur une catégorie principale entière (tous ses sous-postes cumulés) ou une sous-catégorie précise.</p>
+        <div class="grid-form">
+          <div class="field">
+            <label>Portée</label>
+            <select id="budgetScopeType_monthly" onchange="renderBudgetScopeOptions('monthly')">
+              <option value="group">Catégorie principale (tous les sous-postes)</option>
+              <option value="category">Sous-catégorie précise</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Laquelle ?</label>
+            <input type="text" id="budgetScopeSearch_monthly" list="budgetScopeDatalist_monthly" placeholder="Tapez pour rechercher…">
+            <datalist id="budgetScopeDatalist_monthly"></datalist>
+          </div>
+          <div class="field">
+            <label>Montant cible mensuel (€)</label>
+            <input type="number" min="0" step="1" id="budgetAmount_monthly" placeholder="0">
+          </div>
         </div>
-        <div class="field">
-          <label>Laquelle ?</label>
-          <input type="text" id="budgetScopeSearch" list="budgetScopeDatalist" placeholder="Tapez pour rechercher…">
-          <datalist id="budgetScopeDatalist"></datalist>
+        <div class="grid-form" style="margin-top:-6px;">
+          <div class="field">
+            <label>Suggérer un montant depuis l'historique (optionnel)</label>
+            <select id="budgetLookback_monthly">
+              <option value="">— Saisie manuelle —</option>
+              <option value="1">Sur le dernier mois</option>
+              <option value="3">Sur les 3 derniers mois</option>
+              <option value="6">Sur les 6 derniers mois</option>
+              <option value="10">Sur les 10 derniers mois</option>
+              <option value="12">Sur la dernière année</option>
+            </select>
+          </div>
+          <div class="field" style="align-self:end;"><button class="btn secondary" onclick="suggestBudgetAmount('monthly')">🧮 Calculer une suggestion</button></div>
+          <div class="field" style="align-self:end;">
+            <label class="chk" style="display:inline-flex;">
+              <input type="checkbox" id="budgetProvisionInput_monthly" style="width:auto;"> C'est une provision (réserve pour une dépense future)
+            </label>
+          </div>
+          <div class="field" style="align-self:end;"><button class="btn" onclick="addBudgetForPeriod('monthly')">Ajouter</button></div>
         </div>
-        <div class="field">
-          <label>Période</label>
-          <select id="budgetPeriod" onchange="toggleBudgetSmoothField()">
-            <option value="monthly">Mensuel</option>
-            <option value="annual">Annuel</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Montant cible (€)</label>
-          <input type="number" min="0" step="1" id="budgetAmount" placeholder="0">
-        </div>
+        <table>
+          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / mois</th><th></th><th></th><th></th></tr></thead>
+          <tbody id="budgetDefTable_monthly"></tbody>
+        </table>
+        <div id="budgetDefEmpty_monthly" class="empty">Aucun budget mensuel défini pour le moment.</div>
       </div>
-      <div class="grid-form" style="margin-top:-6px;">
-        <div class="field">
-          <label>Suggérer un montant depuis l'historique (optionnel)</label>
-          <select id="budgetLookback">
-            <option value="">— Saisie manuelle —</option>
-            <option value="1">Sur le dernier mois</option>
-            <option value="3">Sur les 3 derniers mois</option>
-            <option value="6">Sur les 6 derniers mois</option>
-            <option value="10">Sur les 10 derniers mois</option>
-            <option value="12">Sur la dernière année</option>
-          </select>
+    </div>
+
+    <!-- ---- Sous-onglet : Budget annuel ---- -->
+    <div class="budget-subview" id="budgetSub-annual">
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0;">Budget annuel</h2>
+          <select id="budgetYearPicker" onchange="renderBudgetTracking()" style="max-width:120px;"></select>
         </div>
-        <div class="field" style="align-self:end;"><button class="btn secondary" onclick="suggestBudgetAmount()">🧮 Calculer une suggestion</button></div>
-        <div class="field" id="budgetSmoothField" style="display:none; align-self:end;">
-          <label class="chk on" style="display:inline-flex;">
-            <input type="checkbox" id="budgetSmoothInput" style="width:auto;"> Lisser sur l'année
-          </label>
-        </div>
-        <div class="field" style="align-self:end;">
-          <label class="chk" style="display:inline-flex;">
-            <input type="checkbox" id="budgetProvisionInput" style="width:auto;"> C'est une provision (réserve pour une dépense future identifiée ou imprévue)
-          </label>
-        </div>
-        <div class="field" style="align-self:end;"><button class="btn" onclick="addBudget()">Ajouter</button></div>
+        <p class="sub">Objectifs annuels explicites, ou dérivés automatiquement d'un budget mensuel (× 12) quand aucun budget annuel n'est défini pour la même portée.</p>
+        <div id="budgetAnnualList"></div>
+        <div id="budgetAnnualEmpty" class="empty">Aucun budget annuel défini.</div>
       </div>
-      <p class="hint" style="margin-top:-8px;">La suggestion calcule votre dépense moyenne passée sur la période choisie pour cette portée et pré-remplit le montant — à vous de valider ou d'ajuster avant d'ajouter. « Lisser sur l'année » compare vos dépenses au rythme attendu à date plutôt qu'au total annuel complet. Une « provision » n'est pas un plafond à ne pas dépasser : c'est un objectif de réserve, pour une dépense ponctuelle prévue (vacances, impôts...) ou un imprévu.</p>
-      <table>
-        <thead><tr><th>Portée</th><th>Type</th><th>Période</th><th class="num">Montant</th><th>Lissage</th><th></th><th></th><th></th></tr></thead>
-        <tbody id="budgetDefTable"></tbody>
-      </table>
-      <div id="budgetDefEmpty" class="empty">Aucun budget défini pour le moment.</div>
+      <div class="card">
+        <h2 style="margin:0 0 4px;">Ajouter / gérer un budget annuel</h2>
+        <p class="sub">Utile pour une dépense irrégulière (impôts, assurance annuelle, vacances...) plutôt qu'un budget mensuel classique.</p>
+        <div class="grid-form">
+          <div class="field">
+            <label>Portée</label>
+            <select id="budgetScopeType_annual" onchange="renderBudgetScopeOptions('annual')">
+              <option value="group">Catégorie principale (tous les sous-postes)</option>
+              <option value="category">Sous-catégorie précise</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Laquelle ?</label>
+            <input type="text" id="budgetScopeSearch_annual" list="budgetScopeDatalist_annual" placeholder="Tapez pour rechercher…">
+            <datalist id="budgetScopeDatalist_annual"></datalist>
+          </div>
+          <div class="field">
+            <label>Montant cible annuel (€)</label>
+            <input type="number" min="0" step="1" id="budgetAmount_annual" placeholder="0">
+          </div>
+        </div>
+        <div class="grid-form" style="margin-top:-6px;">
+          <div class="field">
+            <label>Suggérer un montant depuis l'historique (optionnel)</label>
+            <select id="budgetLookback_annual">
+              <option value="">— Saisie manuelle —</option>
+              <option value="1">Sur le dernier mois</option>
+              <option value="3">Sur les 3 derniers mois</option>
+              <option value="6">Sur les 6 derniers mois</option>
+              <option value="10">Sur les 10 derniers mois</option>
+              <option value="12">Sur la dernière année</option>
+            </select>
+          </div>
+          <div class="field" style="align-self:end;"><button class="btn secondary" onclick="suggestBudgetAmount('annual')">🧮 Calculer une suggestion</button></div>
+          <div class="field" style="align-self:end;">
+            <label class="chk on" style="display:inline-flex;">
+              <input type="checkbox" id="budgetSmoothInput_annual" style="width:auto;"> Lisser sur l'année
+            </label>
+          </div>
+          <div class="field" style="align-self:end;">
+            <label class="chk" style="display:inline-flex;">
+              <input type="checkbox" id="budgetProvisionInput_annual" style="width:auto;"> C'est une provision
+            </label>
+          </div>
+          <div class="field" style="align-self:end;"><button class="btn" onclick="addBudgetForPeriod('annual')">Ajouter</button></div>
+        </div>
+        <p class="hint" style="margin-top:-8px;">« Lisser sur l'année » compare vos dépenses au rythme attendu à date plutôt qu'au total annuel complet.</p>
+        <table>
+          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / an</th><th>Lissage</th><th></th><th></th><th></th></tr></thead>
+          <tbody id="budgetDefTable_annual"></tbody>
+        </table>
+        <div id="budgetDefEmpty_annual" class="empty">Aucun budget annuel défini pour le moment.</div>
+      </div>
+    </div>
+
+    <!-- ---- Sous-onglet : Bilan mensuel ---- -->
+    <div class="budget-subview" id="budgetSub-close">
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0;">Bilan mensuel</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="budgetCloseMonthPicker" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
+            <button class="btn secondary small" onclick="exportBudgetPdf()">📄 Exporter en PDF</button>
+          </div>
+        </div>
+        <p class="sub">Ce qui a été dépensé, ce qui a dépassé (à compenser le mois prochain) ou ce qu'il reste (à reporter ou mettre de côté) — comme les enveloppes budgétaires.</p>
+        <div id="budgetMonthCloseList"></div>
+        <div id="budgetMonthCloseEmpty" class="empty">Rien à clôturer pour ce mois pour l'instant.</div>
+      </div>
     </div>
   </section>
 
@@ -1062,20 +1129,27 @@ function uniqueScopeGroups(){
   return Array.from(set).sort((a,b)=>a.localeCompare(b,"fr"));
 }
 
-function renderBudgetScopeOptions(){
-  const type = document.getElementById("budgetScopeType").value;
-  const list = document.getElementById("budgetScopeDatalist");
-  if(!list) return;
-  if(type === "group"){
-    list.innerHTML = uniqueScopeGroups().map(g=>`<option value="${g}">`).join("");
-  }else{
-    list.innerHTML = state.categories.map(c=>`<option value="${categoryLabel(c)}">`).join("");
-  }
+function showBudgetSubTab(name){
+  document.querySelectorAll(".subtab-btn").forEach(b=>b.classList.remove("active"));
+  const btn = document.querySelector(`.subtab-btn[data-subtab="${name}"]`);
+  if(btn) btn.classList.add("active");
+  document.querySelectorAll(".budget-subview").forEach(v=>v.classList.remove("active"));
+  const view = document.getElementById("budgetSub-"+name);
+  if(view) view.classList.add("active");
 }
 
-function toggleBudgetSmoothField(){
-  const period = document.getElementById("budgetPeriod").value;
-  document.getElementById("budgetSmoothField").style.display = period === "annual" ? "flex" : "none";
+function renderBudgetScopeOptions(suffix){
+  const suffixes = suffix ? [suffix] : ["monthly","annual"];
+  suffixes.forEach(sfx=>{
+    const typeEl = document.getElementById("budgetScopeType_"+sfx);
+    const list = document.getElementById("budgetScopeDatalist_"+sfx);
+    if(!typeEl || !list) return;
+    if(typeEl.value === "group"){
+      list.innerHTML = uniqueScopeGroups().map(g=>`<option value="${g}">`).join("");
+    }else{
+      list.innerHTML = state.categories.map(c=>`<option value="${categoryLabel(c)}">`).join("");
+    }
+  });
 }
 
 function budgetScopeLabel(scope){
@@ -1084,9 +1158,9 @@ function budgetScopeLabel(scope){
   return cat ? categoryLabel(cat) : "(catégorie supprimée)";
 }
 
-function resolveScopeFromForm(){
-  const scopeType = document.getElementById("budgetScopeType").value;
-  const searchVal = document.getElementById("budgetScopeSearch").value.trim();
+function resolveScopeFromForm(suffix){
+  const scopeType = document.getElementById("budgetScopeType_"+suffix).value;
+  const searchVal = document.getElementById("budgetScopeSearch_"+suffix).value.trim();
   if(!searchVal){ appAlert("Choisissez une catégorie principale ou une sous-catégorie."); return null; }
   if(scopeType === "group"){
     if(!uniqueScopeGroups().includes(searchVal)){ appAlert("Catégorie principale inconnue : « " + searchVal + " »."); return null; }
@@ -1109,34 +1183,34 @@ function computeSuggestedAmount(scope, period, lookbackMonths){
   return { total: spent, monthlyAvg, suggested: period==="annual" ? monthlyAvg*12 : monthlyAvg };
 }
 
-function suggestBudgetAmount(){
-  const scope = resolveScopeFromForm();
+function suggestBudgetAmount(suffix){
+  const scope = resolveScopeFromForm(suffix);
   if(!scope) return;
-  const lookback = parseInt(document.getElementById("budgetLookback").value, 10);
+  const lookback = parseInt(document.getElementById("budgetLookback_"+suffix).value, 10);
   if(!lookback){ appAlert("Choisissez d'abord une période d'historique à utiliser pour le calcul."); return; }
-  const period = document.getElementById("budgetPeriod").value;
+  const period = suffix === "annual" ? "annual" : "monthly";
   const { monthlyAvg, suggested } = computeSuggestedAmount(scope, period, lookback);
-  document.getElementById("budgetAmount").value = Math.round(suggested);
+  document.getElementById("budgetAmount_"+suffix).value = Math.round(suggested);
   appAlert(`Sur les ${lookback} dernier(s) mois, la dépense moyenne pour « ${budgetScopeLabel(scope)} » est de ${euro(monthlyAvg)}/mois.\nMontant suggéré (${period==='annual'?'annuel':'mensuel'}) : ${euro(suggested)}. Ajustez si besoin, puis cliquez « Ajouter ».`);
 }
 
-function addBudget(){
-  const scope = resolveScopeFromForm();
+function addBudgetForPeriod(period){
+  const suffix = period === "annual" ? "annual" : "monthly";
+  const scope = resolveScopeFromForm(suffix);
   if(!scope) return;
-  const period = document.getElementById("budgetPeriod").value;
-  const amount = parseFrenchNumber(document.getElementById("budgetAmount").value);
-  const smooth = period === "annual" && document.getElementById("budgetSmoothInput").checked;
-  const kind = document.getElementById("budgetProvisionInput").checked ? "provision" : "depense";
+  const amount = parseFrenchNumber(document.getElementById("budgetAmount_"+suffix).value);
+  const smooth = period === "annual" && document.getElementById("budgetSmoothInput_annual").checked;
+  const kind = document.getElementById("budgetProvisionInput_"+suffix).checked ? "provision" : "depense";
   if(isNaN(amount) || amount <= 0){ appAlert("Indiquez un montant cible valide."); return; }
 
   // Remplace un budget existant de même portée + même période plutôt que d'en créer un doublon.
   state.budgets = state.budgets.filter(b=> !(b.scope.type===scope.type && b.scope.value===scope.value && b.period===period));
   state.budgets.push({ id: uid(), scope, period, amount, smooth, kind });
-  document.getElementById("budgetScopeSearch").value = "";
-  document.getElementById("budgetAmount").value = "";
-  document.getElementById("budgetSmoothInput").checked = false;
-  document.getElementById("budgetProvisionInput").checked = false;
-  document.getElementById("budgetLookback").value = "";
+  document.getElementById("budgetScopeSearch_"+suffix).value = "";
+  document.getElementById("budgetAmount_"+suffix).value = "";
+  if(period === "annual") document.getElementById("budgetSmoothInput_annual").checked = false;
+  document.getElementById("budgetProvisionInput_"+suffix).checked = false;
+  document.getElementById("budgetLookback_"+suffix).value = "";
   persistConfig();
   renderBudgets();
 }
@@ -1172,23 +1246,37 @@ function updateBudgetKind(id, checked){
 }
 
 function renderBudgetDefinitions(){
-  const tbody = document.getElementById("budgetDefTable");
-  const sorted = [...state.budgets].sort((a,b)=> budgetScopeLabel(a.scope).localeCompare(budgetScopeLabel(b.scope),"fr"));
-  tbody.innerHTML = sorted.map(b=>`
+  const monthly = state.budgets.filter(b=>b.period==="monthly").sort((a,b)=>budgetScopeLabel(a.scope).localeCompare(budgetScopeLabel(b.scope),"fr"));
+  const annual = state.budgets.filter(b=>b.period==="annual").sort((a,b)=>budgetScopeLabel(a.scope).localeCompare(budgetScopeLabel(b.scope),"fr"));
+
+  document.getElementById("budgetDefTable_monthly").innerHTML = monthly.map(b=>`
     <tr>
       <td>${budgetScopeLabel(b.scope)}</td>
       <td><label class="chk ${b.kind==='provision'?'on':''}" style="font-size:12px; display:inline-flex;">
             <input type="checkbox" ${b.kind==='provision'?'checked':''} onchange="updateBudgetKind('${b.id}', this.checked)" style="width:auto;"> Provision
           </label></td>
-      <td>${b.period === "monthly" ? "Mensuel" : "Annuel"}</td>
       <td class="num"><input type="number" min="0" step="1" value="${b.amount}" style="width:90px; text-align:right;"
             onchange="updateBudgetAmount('${b.id}', this.value)"></td>
-      <td>${b.period==="annual" ? `<label class="chk ${b.smooth?"on":""}" style="font-size:12px; display:inline-flex;"><input type="checkbox" ${b.smooth?"checked":""} onchange="updateBudgetSmooth('${b.id}', this.checked)" style="width:auto;"> Lisser</label>` : "—"}</td>
       <td><button class="btn secondary small" onclick="showBudgetBilan('${b.id}')">📊 Bilan</button></td>
       <td><button class="btn secondary small" onclick="recalcBudgetFromHistory('${b.id}')">🔄 Recalculer</button></td>
       <td><button class="icon-btn" onclick="removeBudget('${b.id}')">✕</button></td>
     </tr>`).join("");
-  document.getElementById("budgetDefEmpty").style.display = sorted.length ? "none" : "block";
+  document.getElementById("budgetDefEmpty_monthly").style.display = monthly.length ? "none" : "block";
+
+  document.getElementById("budgetDefTable_annual").innerHTML = annual.map(b=>`
+    <tr>
+      <td>${budgetScopeLabel(b.scope)}</td>
+      <td><label class="chk ${b.kind==='provision'?'on':''}" style="font-size:12px; display:inline-flex;">
+            <input type="checkbox" ${b.kind==='provision'?'checked':''} onchange="updateBudgetKind('${b.id}', this.checked)" style="width:auto;"> Provision
+          </label></td>
+      <td class="num"><input type="number" min="0" step="1" value="${b.amount}" style="width:90px; text-align:right;"
+            onchange="updateBudgetAmount('${b.id}', this.value)"></td>
+      <td><label class="chk ${b.smooth?"on":""}" style="font-size:12px; display:inline-flex;"><input type="checkbox" ${b.smooth?"checked":""} onchange="updateBudgetSmooth('${b.id}', this.checked)" style="width:auto;"> Lisser</label></td>
+      <td><button class="btn secondary small" onclick="showBudgetBilan('${b.id}')">📊 Bilan</button></td>
+      <td><button class="btn secondary small" onclick="recalcBudgetFromHistory('${b.id}')">🔄 Recalculer</button></td>
+      <td><button class="icon-btn" onclick="removeBudget('${b.id}')">✕</button></td>
+    </tr>`).join("");
+  document.getElementById("budgetDefEmpty_annual").style.display = annual.length ? "none" : "block";
 }
 
 function recalcBudgetFromHistory(id){
@@ -1312,6 +1400,34 @@ function renderBudgetProgressRow(label, targetAmount, spent, hint, isProvision){
 
 /* Calcule le HTML de suivi des budgets mensuels/annuels pour un mois et une année donnés.
    Réutilisé par l'onglet Budget et par la carte du tableau de bord. */
+function computeMonthCloseHTML(selMonth, txs){
+  txs = txs || state.transactions;
+  const monthlyBudgets = state.budgets.filter(b=>b.period==="monthly");
+  // Bilan / clôture du mois : ce qui reste (à reporter ou mettre de côté) ou ce qui a été dépassé
+  // (à compenser le mois prochain) — façon "enveloppes" façon YNAB/Goodbudget.
+  const monthCloseRows = monthlyBudgets.map(b=>{
+    const spent = netSpend(txs.filter(t=> monthKey(t.date)===selMonth && txMatchesScope(t,b.scope)));
+    const target = effectiveMonthlyTarget(b, selMonth);
+    return { b, spent, target, diff: target - spent };
+  }).filter(r=>Math.abs(r.diff) > 0.5 && r.b.kind !== "provision");
+  if(monthCloseRows.length === 0){
+    return monthlyBudgets.length ? `<p class="hint" style="margin:0;">Tous les budgets mensuels collent à leur cible ce mois-ci — rien à reporter.</p>` : "";
+  }
+  return monthCloseRows.map(r=>{
+    const isSurplus = r.diff > 0;
+    const diffTxt = (isSurplus?"+":"") + euro(r.diff);
+    return `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid var(--border);">
+      <div style="flex:1; min-width:160px;">
+        <strong>${budgetScopeLabel(r.b.scope)}</strong><br>
+        <span class="hint" style="margin:0;">${euro(r.spent)} dépensé sur ${euro(r.target)} budgété</span>
+      </div>
+      <span style="font-family:var(--font-mono); font-weight:600; color:${isSurplus?'var(--green)':'var(--terracotta)'};">${diffTxt}</span>
+      <button class="btn secondary small" onclick="rolloverBudgetMonth('${r.b.id}','${selMonth}',${r.diff})">↪️ Reporter au mois prochain</button>
+      ${isSurplus ? `<button class="btn secondary small" onclick="setAsideBudgetMonth('${r.b.id}','${selMonth}',${r.diff})">🏦 Mettre de côté</button>` : ""}
+    </div>`;
+  }).join("");
+}
+
 function computeBudgetTrackingHTML(selMonth, selYear, txs){
   txs = txs || state.transactions;
   const monthlyBudgets = state.budgets.filter(b=>b.period==="monthly")
@@ -1329,32 +1445,6 @@ function computeBudgetTrackingHTML(selMonth, selYear, txs){
     const hint = adj ? (adj>0 ? `dont ${euro(adj)} reporté(s) du mois précédent` : `dont ${euro(Math.abs(adj))} de compensation du mois précédent`) : null;
     return renderBudgetProgressRow(budgetScopeLabel(b.scope) + " (mensuel" + (isProv?", provision":"") + ")", target, spent, hint, isProv);
   }).join("");
-
-  // Bilan / clôture du mois : ce qui reste (à reporter ou mettre de côté) ou ce qui a été dépassé
-  // (à compenser le mois prochain) — façon "enveloppes" façon YNAB/Goodbudget.
-  const monthCloseRows = monthlyBudgets.map(b=>{
-    const spent = netSpend(txs.filter(t=> monthKey(t.date)===selMonth && txMatchesScope(t,b.scope)));
-    const target = effectiveMonthlyTarget(b, selMonth);
-    return { b, spent, target, diff: target - spent };
-  }).filter(r=>Math.abs(r.diff) > 0.5 && r.b.kind !== "provision");
-  let monthCloseHTML = "";
-  if(monthCloseRows.length){
-    monthCloseHTML = monthCloseRows.map(r=>{
-      const isSurplus = r.diff > 0;
-      const diffTxt = (isSurplus?"+":"") + euro(r.diff);
-      return `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid var(--border);">
-        <div style="flex:1; min-width:160px;">
-          <strong>${budgetScopeLabel(r.b.scope)}</strong><br>
-          <span class="hint" style="margin:0;">${euro(r.spent)} dépensé sur ${euro(r.target)} budgété</span>
-        </div>
-        <span style="font-family:var(--font-mono); font-weight:600; color:${isSurplus?'var(--green)':'var(--terracotta)'};">${diffTxt}</span>
-        <button class="btn secondary small" onclick="rolloverBudgetMonth('${r.b.id}','${selMonth}',${r.diff})">↪️ Reporter au mois prochain</button>
-        ${isSurplus ? `<button class="btn secondary small" onclick="setAsideBudgetMonth('${r.b.id}','${selMonth}',${r.diff})">🏦 Mettre de côté</button>` : ""}
-      </div>`;
-    }).join("");
-  }else if(monthlyBudgets.length){
-    monthCloseHTML = `<p class="hint" style="margin:0;">Tous les budgets mensuels collent à leur cible ce mois-ci — rien à reporter.</p>`;
-  }
 
   let annualTargetSum = 0, annualSpentSum = 0;
   const annualRows = [];
@@ -1404,7 +1494,7 @@ function computeBudgetTrackingHTML(selMonth, selYear, txs){
   }
 
   return {
-    monthlyHTML, annualHTML, summaryHTML, monthCloseHTML,
+    monthlyHTML, annualHTML, summaryHTML,
     hasAny: monthlyBudgets.length + annualCount > 0,
     monthlyTargetSum, monthlySpentSum, annualTargetSum, annualSpentSum
   };
@@ -1488,13 +1578,19 @@ function showBudgetBilan(id){
 
 function renderBudgetTracking(){
   const scoped = getScopedTransactions();
-  const monthPicker = document.getElementById("budgetMonthPicker");
   const months = Array.from(new Set(scoped.map(t=>monthKey(t.date)).filter(Boolean))).sort().reverse();
   const currentMonth = new Date().toISOString().slice(0,7);
   const monthOptions = Array.from(new Set([currentMonth, ...months])).sort().reverse();
+
+  const monthPicker = document.getElementById("budgetMonthPicker");
   const prevMonthVal = monthPicker.value;
   monthPicker.innerHTML = monthOptions.map(m=>`<option value="${m}">${m}</option>`).join("");
   monthPicker.value = monthOptions.includes(prevMonthVal) ? prevMonthVal : currentMonth;
+
+  const closeMonthPicker = document.getElementById("budgetCloseMonthPicker");
+  const prevCloseMonthVal = closeMonthPicker.value;
+  closeMonthPicker.innerHTML = monthOptions.map(m=>`<option value="${m}">${m}</option>`).join("");
+  closeMonthPicker.value = monthOptions.includes(prevCloseMonthVal) ? prevCloseMonthVal : currentMonth;
 
   const yearPicker = document.getElementById("budgetYearPicker");
   const years = Array.from(new Set(scoped.map(t=>(t.date||"").slice(0,4)).filter(Boolean)));
@@ -1504,12 +1600,14 @@ function renderBudgetTracking(){
   yearPicker.innerHTML = yearOptions.map(y=>`<option value="${y}">${y}</option>`).join("");
   yearPicker.value = yearOptions.includes(prevYearVal) ? prevYearVal : currentYear;
 
-  const { monthlyHTML, annualHTML, summaryHTML, monthCloseHTML } = computeBudgetTrackingHTML(monthPicker.value, yearPicker.value, scoped);
+  const { monthlyHTML, annualHTML, summaryHTML } = computeBudgetTrackingHTML(monthPicker.value, yearPicker.value, scoped);
   document.getElementById("budgetSummary").innerHTML = summaryHTML;
   document.getElementById("budgetMonthlyList").innerHTML = monthlyHTML;
   document.getElementById("budgetMonthlyEmpty").style.display = monthlyHTML ? "none" : "block";
   document.getElementById("budgetAnnualList").innerHTML = annualHTML;
   document.getElementById("budgetAnnualEmpty").style.display = annualHTML ? "none" : "block";
+
+  const monthCloseHTML = computeMonthCloseHTML(closeMonthPicker.value, scoped);
   document.getElementById("budgetMonthCloseList").innerHTML = monthCloseHTML;
   document.getElementById("budgetMonthCloseEmpty").style.display = monthCloseHTML ? "none" : "block";
 }
@@ -1522,7 +1620,7 @@ function exportBudgetPdf(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   const scoped = getScopedTransactions();
-  const selMonth = document.getElementById("budgetMonthPicker").value || new Date().toISOString().slice(0,7);
+  const selMonth = document.getElementById("budgetCloseMonthPicker").value || document.getElementById("budgetMonthPicker").value || new Date().toISOString().slice(0,7);
   const selYear = document.getElementById("budgetYearPicker").value || String(new Date().getFullYear());
   const accId = currentAccountId();
   const accName = accId ? ((state.accounts.find(a=>a.id===accId)||{}).name || "") : "Tous les comptes";
