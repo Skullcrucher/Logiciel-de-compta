@@ -12,10 +12,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
-    --bg:#F6F3EA; --surface:#FFFFFF; --surface-2:#EFEADB; --border:#DAD3BE;
-    --ink:#232720; --muted:#6E6A5C;
-    --green:#2F5D50;
-    --terracotta:#B5533C; --gold:#B4881E; --blue:#3A6EA5;
+    --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EAEEF2; --border:#DBE2E8;
+    --ink:#1F2933; --muted:#64748B;
+    --green:#12806B;
+    --terracotta:#DD5E4C; --gold:#C99A2E; --blue:#3B6FD1;
     --font-display:"Lora", Georgia, serif;
     --font-body:"Inter", -apple-system, "Segoe UI", sans-serif;
     --font-mono:"IBM Plex Mono", "Courier New", monospace;
@@ -23,13 +23,13 @@
   :root:not([data-theme="light"]){ color-scheme: light dark; }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
-      --bg:#181A17; --surface:#212420; --surface-2:#2A2D27; --border:#3B3E36;
-      --ink:#EDEAE0; --muted:#9B968A; --green:#6FA893; --terracotta:#E08268; --gold:#E4B23C; --blue:#7AA9D6;
+      --bg:#11151C; --surface:#1A2029; --surface-2:#232A35; --border:#323B48;
+      --ink:#E7ECF2; --muted:#8B98AA; --green:#2FB897; --terracotta:#EF8574; --gold:#E8BE64; --blue:#749DF2;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#181A17; --surface:#212420; --surface-2:#2A2D27; --border:#3B3E36;
-    --ink:#EDEAE0; --muted:#9B968A; --green:#6FA893; --terracotta:#E08268; --gold:#E4B23C; --blue:#7AA9D6;
+    --bg:#11151C; --surface:#1A2029; --surface-2:#232A35; --border:#323B48;
+    --ink:#E7ECF2; --muted:#8B98AA; --green:#2FB897; --terracotta:#EF8574; --gold:#E8BE64; --blue:#749DF2;
   }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
@@ -77,13 +77,13 @@
   section.view{ display:none; }
   section.view.active{ display:block; }
 
-  .card{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:20px 22px; margin-bottom:18px; }
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 18px; margin-bottom:14px; }
   .tx-sticky-bar{
     position: sticky; top: 56px; z-index: 60;
     background: var(--surface); padding-top: 18px; padding-bottom: 10px;
   }
-  .card h2{ font-family:var(--font-display); font-size:19px; font-weight:600; margin:0 0 4px; }
-  .card .sub{ color:var(--muted); font-size:13px; margin:0 0 16px; }
+  .card h2{ font-family:var(--font-display); font-size:17px; font-weight:600; margin:0 0 3px; }
+  .card .sub{ color:var(--muted); font-size:12.5px; margin:0 0 12px; }
 
   label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
   input[type=text], input[type=number], input[type=date], input[type=file], select{
@@ -189,7 +189,7 @@
   <header class="led">
     <div>
       <input id="famTitle" type="text" value="Compte personnel">
-      <div class="sub">Import bancaire, tri automatique, suivi mensuel — données conservées dans ce navigateur.</div>
+      <div class="sub">Import bancaire, tri automatique, suivi mensuel.</div>
       <div style="margin-top:8px;">
         <label class="hint" style="margin:0 6px 0 0;">Compte :</label>
         <select id="accountFilter" onchange="onAccountFilterChange()" style="max-width:220px; display:inline-block;"></select>
@@ -203,43 +203,14 @@
   </header>
   <datalist id="accountDatalist"></datalist>
 
-  <div id="syncBanner" class="sync-banner local">Non connecté — stockage local uniquement.</div>
-
-  <div class="card" style="padding:16px 18px; margin-bottom:16px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-      <h2 style="font-size:15px; margin:0;">☁️ Sauvegarde automatique sur Google Drive</h2>
-      <div style="display:flex; gap:8px;">
-        <button class="btn small" onclick="connectDrive()">Connecter</button>
-        <button class="btn secondary small" onclick="manualRefresh()">🔄 Actualiser</button>
-        <button class="btn secondary small" onclick="disconnectDrive()">Déconnecter</button>
-      </div>
-    </div>
-    <div class="grid-form" style="margin-top:12px; margin-bottom:6px;">
-      <div class="field" style="grid-column: span 2;">
-        <label>Lien de votre script Google (URL se terminant par /exec)</label>
-        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-    </div>
-    <p class="hint" id="driveStatus" style="margin-top:2px;">Pas encore connecté. Voir les instructions de configuration fournies séparément.</p>
-  </div>
-
   <nav class="tabs">
     <button class="active" data-view="import">Import</button>
     <button data-view="transactions">Transactions</button>
     <button data-view="regles">Règles &amp; catégories</button>
     <button data-view="budget">Budget</button>
     <button data-view="dashboard">Tableau de bord</button>
+    <button data-view="reglages">Réglages</button>
   </nav>
-
-  <div class="toolbar">
-    <span class="hint" style="margin:0;">Une sauvegarde manuelle reste possible en complément.</span>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="btn secondary small" onclick="exportBackup()">⭳ Exporter la sauvegarde</button>
-      <button class="btn secondary small" onclick="document.getElementById('importBackupFile').click()">⭱ Importer une sauvegarde</button>
-      <input type="file" id="importBackupFile" accept="application/json" style="display:none" onchange="importBackup(this.files[0])">
-      <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetTransactionsData()">🗑️ Réinitialiser les opérations</button>
-    </div>
-  </div>
 
   <!-- ============ IMPORT ============ -->
   <section class="view active" id="view-import">
@@ -377,23 +348,7 @@
   <!-- ============ REGLES & CATEGORIES ============ -->
   <section class="view" id="view-regles">
     <div class="card">
-      <h2>Comptes</h2>
-      <p class="sub">Gérez plusieurs comptes (compte personnel, joint, livret...). Les catégories, règles et budgets sont partagés entre tous les comptes.</p>
-      <div class="grid-form">
-        <div class="field"><label>Nom du compte</label><input type="text" id="newAccountName" placeholder="Ex : Compte joint"></div>
-        <div class="field" style="align-self:end;"><button class="btn" onclick="addAccount()">Ajouter</button></div>
-      </div>
-      <table>
-        <thead><tr><th>Nom</th><th></th></tr></thead>
-        <tbody id="accountTable"></tbody>
-      </table>
-    </div>
-
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0;">Catégories</h2>
-        <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetCategoriesData()">🗑️ Réinitialiser les catégories</button>
-      </div>
+      <h2>Catégories</h2>
       <p class="sub">La liste des postes utilisés pour classer les opérations. Une même catégorie peut recevoir des dépenses et des remboursements — ils s'équilibrent automatiquement (pas besoin de distinguer dépense/revenu).</p>
       <div class="grid-form">
         <div class="field"><label>Catégorie principale (optionnel)</label><input type="text" id="newCatGroup" placeholder="Ex : Logement"></div>
@@ -582,16 +537,6 @@
 
   <!-- ============ DASHBOARD ============ -->
   <section class="view" id="view-dashboard">
-    <div class="card" style="padding:14px 18px;">
-      <h2 style="font-size:15px; margin-bottom:10px;">⚙️ Personnaliser le tableau de bord</h2>
-      <div style="display:flex; flex-wrap:wrap; gap:8px 18px;">
-        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_monthlyChart" onchange="updateDashboardConfig()" style="width:auto;"> Évolution mensuelle</label>
-        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_categoryChart" onchange="updateDashboardConfig()" style="width:auto;"> Habitudes par catégorie</label>
-        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_budgetStatus" onchange="updateDashboardConfig()" style="width:auto;"> État des budgets</label>
-        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_breakdown" onchange="updateDashboardConfig()" style="width:auto;"> Répartition par catégorie</label>
-        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_monthTable" onchange="updateDashboardConfig()" style="width:auto;"> Détail mensuel</label>
-      </div>
-    </div>
     <div class="card" id="dashCard_monthlyChart">
       <div class="toolbar">
         <h2 style="margin:0;">Évolution</h2>
@@ -644,6 +589,72 @@
         </table>
       </div>
       <div id="monthEmpty" class="empty">Pas encore de données.</div>
+    </div>
+  </section>
+
+  <!-- ============ REGLAGES ============ -->
+  <section class="view" id="view-reglages">
+    <div id="syncBanner" class="sync-banner local">Non connecté — stockage local uniquement.</div>
+
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="font-size:15px; margin:0;">☁️ Sauvegarde automatique sur Google Drive</h2>
+        <div style="display:flex; gap:8px;">
+          <button class="btn small" onclick="connectDrive()">Connecter</button>
+          <button class="btn secondary small" onclick="manualRefresh()">🔄 Actualiser</button>
+          <button class="btn secondary small" onclick="disconnectDrive()">Déconnecter</button>
+        </div>
+      </div>
+      <div class="grid-form" style="margin-top:10px; margin-bottom:6px;">
+        <div class="field" style="grid-column: span 2;">
+          <label>Lien de votre script Google (URL se terminant par /exec)</label>
+          <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+      </div>
+      <p class="hint" id="driveStatus" style="margin-top:2px;">Pas encore connecté. Voir les instructions de configuration fournies séparément.</p>
+    </div>
+
+    <div class="card">
+      <h2>Sauvegarde manuelle</h2>
+      <p class="sub">En complément de la synchronisation automatique — utile pour transporter vos données à la main.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn secondary small" onclick="exportBackup()">⭳ Exporter la sauvegarde</button>
+        <button class="btn secondary small" onclick="document.getElementById('importBackupFile').click()">⭱ Importer une sauvegarde</button>
+        <input type="file" id="importBackupFile" accept="application/json" style="display:none" onchange="importBackup(this.files[0])">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Comptes</h2>
+      <p class="sub">Plusieurs comptes possibles (personnel, joint, livret...). Catégories, règles et budgets sont partagés entre tous.</p>
+      <div class="grid-form">
+        <div class="field"><label>Nom du compte</label><input type="text" id="newAccountName" placeholder="Ex : Compte joint"></div>
+        <div class="field" style="align-self:end;"><button class="btn" onclick="addAccount()">Ajouter</button></div>
+      </div>
+      <table>
+        <thead><tr><th>Nom</th><th></th></tr></thead>
+        <tbody id="accountTable"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="font-size:15px; margin-bottom:8px;">⚙️ Personnaliser le tableau de bord</h2>
+      <div style="display:flex; flex-wrap:wrap; gap:8px 18px;">
+        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_monthlyChart" onchange="updateDashboardConfig()" style="width:auto;"> Évolution mensuelle</label>
+        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_categoryChart" onchange="updateDashboardConfig()" style="width:auto;"> Habitudes par catégorie</label>
+        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_budgetStatus" onchange="updateDashboardConfig()" style="width:auto;"> État des budgets</label>
+        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_breakdown" onchange="updateDashboardConfig()" style="width:auto;"> Répartition par catégorie</label>
+        <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_monthTable" onchange="updateDashboardConfig()" style="width:auto;"> Détail mensuel</label>
+      </div>
+    </div>
+
+    <div class="card" style="border-color:var(--terracotta);">
+      <h2 style="color:var(--terracotta); font-size:15px;">⚠️ Zone dangereuse</h2>
+      <p class="sub">Ces actions sont irréversibles.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetTransactionsData()">🗑️ Réinitialiser les opérations</button>
+        <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetCategoriesData()">🗑️ Réinitialiser les catégories</button>
+      </div>
     </div>
   </section>
 
@@ -2517,7 +2528,7 @@ function editOpeningBalance(){
 
 /* ---------------- Dashboard ---------------- */
 let chartMonthlyInstance = null, chartByCategoryInstance = null;
-const CAT_CHART_COLORS = ["#2F5D50","#B5533C","#B4881E","#3A6EA5","#7A4C9E","#4C8C4A","#C2534F","#5B7A99"];
+const CAT_CHART_COLORS = ["#12806B","#DD5E4C","#C99A2E","#3B6FD1","#8B5CF6","#4C9F70","#E0836F","#5B8AA6"];
 
 function categoryBucketLabel(cat){
   if(!cat) return "Non catégorisé";
@@ -2583,9 +2594,9 @@ function renderMonthlyChart(periods, txs, freq){
     data: {
       labels,
       datasets: [
-        { label: "Revenus", data: inData, borderColor: "#2F5D50", backgroundColor: "rgba(47,93,80,.15)", tension: .25 },
-        { label: "Dépenses", data: outData, borderColor: "#B5533C", backgroundColor: "rgba(181,83,60,.15)", tension: .25 },
-        { label: "Solde cumulé", data: balanceData, borderColor: "#B4881E", borderDash: [5,4], tension: .25 }
+        { label: "Revenus", data: inData, borderColor: "#12806B", backgroundColor: "rgba(18,128,107,.15)", tension: .25 },
+        { label: "Dépenses", data: outData, borderColor: "#DD5E4C", backgroundColor: "rgba(221,94,76,.15)", tension: .25 },
+        { label: "Solde cumulé", data: balanceData, borderColor: "#C99A2E", borderDash: [5,4], tension: .25 }
       ]
     },
     options: {
