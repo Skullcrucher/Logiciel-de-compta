@@ -196,25 +196,10 @@
 <body>
 <div class="wrap">
 
-  <header class="led">
-    <div>
-      <input id="famTitle" type="text" value="Compte personnel">
-      <div class="sub">Import bancaire, tri automatique, suivi mensuel.</div>
-      <div style="margin-top:8px;">
-        <label class="hint" style="margin:0 6px 0 0;">Compte :</label>
-        <select id="accountFilter" onchange="onAccountFilterChange()" style="max-width:220px; display:inline-block;"></select>
-      </div>
-    </div>
-    <div class="kpis">
-      <div class="kpi"><div class="l">Revenus</div><div class="v pos" id="kpiIn">0,00 €</div></div>
-      <div class="kpi"><div class="l">Dépenses</div><div class="v neg" id="kpiOut">0,00 €</div></div>
-      <div class="kpi"><div class="l">Solde <button class="icon-btn" style="font-size:12px; padding:0 2px;" onclick="editOpeningBalance()" title="Régler le solde initial">✎</button></div><div class="v" id="kpiNet">0,00 €</div><div class="hint" id="obHint" style="margin-top:2px;"></div></div>
-    </div>
-  </header>
   <datalist id="accountDatalist"></datalist>
 
   <nav class="tabs">
-    <button class="active" data-view="import">Import</button>
+    <button class="active" data-view="accueil">Accueil</button>
     <button data-view="transactions">Transactions</button>
     <button data-view="regles">Règles &amp; catégories</button>
     <button data-view="budget">Budget</button>
@@ -228,64 +213,25 @@
     <button class="btn secondary small" id="undoBtn" onclick="undoLastChange()" disabled title="Annuler la dernière modification (Ctrl+Z)">↶ Annuler</button>
   </div>
 
-  <!-- ============ IMPORT ============ -->
-  <section class="view active" id="view-import">
-    <div class="card">
-      <h2>Importer un relevé bancaire (CSV, OFX ou QIF)</h2>
-      <p class="sub">Exportez vos opérations depuis votre banque au format CSV, OFX (« format Money ») ou QIF, puis déposez le fichier ici. Seules les colonnes que vous choisissez (date, libellé, montant) sont importées — le reste n'est jamais lu.</p>
-      <div class="drop" id="dropZone">
-        📄 Glissez un fichier CSV, OFX ou QIF ici, ou
-        <label for="csvFile" style="color:var(--green); cursor:pointer; text-decoration:underline;">choisissez-le</label>
-        <input type="file" id="csvFile" accept=".csv,.ofx,.qfx,.qif,.txt,text/csv" style="display:none" onchange="handleFile(this.files[0])">
+  <!-- ============ ACCUEIL ============ -->
+  <section class="view active" id="view-accueil">
+    <header class="led">
+      <div>
+        <input id="famTitle" type="text" value="Compte personnel">
+        <div class="sub">Import bancaire, tri automatique, suivi mensuel.</div>
+        <div style="margin-top:8px;">
+          <label class="hint" style="margin:0 6px 0 0;">Compte :</label>
+          <select id="accountFilter" onchange="onAccountFilterChange()" style="max-width:220px; display:inline-block;"></select>
+        </div>
       </div>
-      <div id="mappingBox" style="display:none; margin-top:18px;">
-        <h2 style="font-size:16px;">Correspondance des colonnes</h2>
-        <div class="mapping-grid">
-          <div class="field"><label>Colonne Date</label><select id="mapDate" class="mapsel"></select></div>
-          <div class="field"><label>Colonne Libellé</label><select id="mapLabel" class="mapsel"></select></div>
-          <div class="field">
-            <label>Montant</label>
-            <select id="mapAmountMode" onchange="toggleAmountMode()">
-              <option value="single">Une seule colonne (+/-)</option>
-              <option value="split">Débit / Crédit séparés</option>
-            </select>
-          </div>
-          <div class="field" id="mapAmountSingleBox"><label>Colonne Montant</label><select id="mapAmount" class="mapsel"></select></div>
-          <div class="field" id="mapDebitBox" style="display:none;"><label>Colonne Débit</label><select id="mapDebit" class="mapsel"></select></div>
-          <div class="field" id="mapCreditBox" style="display:none;"><label>Colonne Crédit</label><select id="mapCredit" class="mapsel"></select></div>
-          <div class="field"><label>Colonne Catégorie (si déjà présente)</label><select id="mapCategory" class="mapsel"></select></div>
-          <div class="field"><label>Importer vers le compte</label><select id="mapAccount" class="mapsel"></select></div>
-        </div>
-        <p class="hint" id="importPreambleHint" style="display:none;"></p>
-        <div class="table-scroll">
-          <table id="previewTable"></table>
-        </div>
-        <p class="hint" id="importSummary"></p>
-        <div id="duplicatesBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
-          <h2 style="font-size:15px; margin-bottom:6px;">⚠️ Doublons potentiels détectés</h2>
-          <p class="sub" id="duplicatesIntro" style="margin-bottom:10px;"></p>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th>Déjà présent</th><th>Décision</th></tr></thead>
-              <tbody id="duplicatesTable"></tbody>
-            </table>
-          </div>
-        </div>
-        <button class="btn secondary" onclick="checkMissingFromFile()" style="margin-top:4px;">🔍 Vérifier les opérations absentes de ce relevé</button>
-        <div id="missingBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
-          <h2 style="font-size:15px; margin-bottom:6px;">⚠️ Opérations enregistrées mais absentes de ce relevé</h2>
-          <p class="sub" id="missingIntro" style="margin-bottom:10px;"></p>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th></th></tr></thead>
-              <tbody id="missingTable"></tbody>
-            </table>
-          </div>
-        </div>
-        <button class="btn" onclick="confirmImport()" style="margin-top:12px;">Importer ces opérations</button>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Revenus</div><div class="v pos" id="kpiIn">0,00 €</div></div>
+        <div class="kpi"><div class="l">Dépenses</div><div class="v neg" id="kpiOut">0,00 €</div></div>
+        <div class="kpi"><div class="l">Solde <button class="icon-btn" style="font-size:12px; padding:0 2px;" onclick="editOpeningBalance()" title="Régler le solde initial">✎</button></div><div class="v" id="kpiNet">0,00 €</div><div class="hint" id="obHint" style="margin-top:2px;"></div></div>
       </div>
-    </div>
+    </header>
   </section>
+
 
   <!-- ============ TRANSACTIONS ============ -->
   <section class="view" id="view-transactions">
@@ -365,7 +311,7 @@
     <div class="card" id="reconcileBox">
       <h2>Rapprochement bancaire</h2>
       <p class="sub">Comparez le solde calculé ici avec celui affiché par votre banque à une date donnée. S'il y a un écart, une opération manque ou est en trop. Cochez « ✓ » les opérations vérifiées sur le relevé pour suivre ce qui a déjà été contrôlé.</p>
-      <div id="reconcileNeedsAccount" class="hint">Choisissez un compte précis (en haut de la page, « Compte : ») pour faire un rapprochement.</div>
+      <div id="reconcileNeedsAccount" class="hint">Choisissez un compte précis (onglet Accueil, « Compte : ») pour faire un rapprochement.</div>
       <div id="reconcileForm" style="display:none;">
         <div class="grid-form">
           <div class="field"><label>Date du relevé</label><input type="date" id="reconcileDate"></div>
@@ -593,7 +539,7 @@
           <option value="365">12 prochains mois</option>
         </select>
       </div>
-      <p class="sub">Solde actuel + opérations récurrentes à venir (pour le compte sélectionné en haut de la page, ou tous les comptes).</p>
+      <p class="sub">Solde actuel + opérations récurrentes à venir (pour le compte choisi dans l'onglet Accueil, ou tous les comptes).</p>
       <div id="forecastBox"></div>
       <div class="table-scroll">
         <table>
@@ -718,6 +664,62 @@
 
   <!-- ============ REGLAGES ============ -->
   <section class="view" id="view-reglages">
+    <div class="card">
+      <h2>Importer un relevé bancaire (CSV, OFX ou QIF)</h2>
+      <p class="sub">Exportez vos opérations depuis votre banque au format CSV, OFX (« format Money ») ou QIF, puis déposez le fichier ici. Seules les colonnes que vous choisissez (date, libellé, montant) sont importées — le reste n'est jamais lu.</p>
+      <div class="drop" id="dropZone">
+        📄 Glissez un fichier CSV, OFX ou QIF ici, ou
+        <label for="csvFile" style="color:var(--green); cursor:pointer; text-decoration:underline;">choisissez-le</label>
+        <input type="file" id="csvFile" accept=".csv,.ofx,.qfx,.qif,.txt,text/csv" style="display:none" onchange="handleFile(this.files[0])">
+      </div>
+      <div id="mappingBox" style="display:none; margin-top:18px;">
+        <h2 style="font-size:16px;">Correspondance des colonnes</h2>
+        <div class="mapping-grid">
+          <div class="field"><label>Colonne Date</label><select id="mapDate" class="mapsel"></select></div>
+          <div class="field"><label>Colonne Libellé</label><select id="mapLabel" class="mapsel"></select></div>
+          <div class="field">
+            <label>Montant</label>
+            <select id="mapAmountMode" onchange="toggleAmountMode()">
+              <option value="single">Une seule colonne (+/-)</option>
+              <option value="split">Débit / Crédit séparés</option>
+            </select>
+          </div>
+          <div class="field" id="mapAmountSingleBox"><label>Colonne Montant</label><select id="mapAmount" class="mapsel"></select></div>
+          <div class="field" id="mapDebitBox" style="display:none;"><label>Colonne Débit</label><select id="mapDebit" class="mapsel"></select></div>
+          <div class="field" id="mapCreditBox" style="display:none;"><label>Colonne Crédit</label><select id="mapCredit" class="mapsel"></select></div>
+          <div class="field"><label>Colonne Catégorie (si déjà présente)</label><select id="mapCategory" class="mapsel"></select></div>
+          <div class="field"><label>Importer vers le compte</label><select id="mapAccount" class="mapsel"></select></div>
+        </div>
+        <p class="hint" id="importPreambleHint" style="display:none;"></p>
+        <div class="table-scroll">
+          <table id="previewTable"></table>
+        </div>
+        <p class="hint" id="importSummary"></p>
+        <div id="duplicatesBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
+          <h2 style="font-size:15px; margin-bottom:6px;">⚠️ Doublons potentiels détectés</h2>
+          <p class="sub" id="duplicatesIntro" style="margin-bottom:10px;"></p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th>Déjà présent</th><th>Décision</th></tr></thead>
+              <tbody id="duplicatesTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <button class="btn secondary" onclick="checkMissingFromFile()" style="margin-top:4px;">🔍 Vérifier les opérations absentes de ce relevé</button>
+        <div id="missingBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
+          <h2 style="font-size:15px; margin-bottom:6px;">⚠️ Opérations enregistrées mais absentes de ce relevé</h2>
+          <p class="sub" id="missingIntro" style="margin-bottom:10px;"></p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th></th></tr></thead>
+              <tbody id="missingTable"></tbody>
+            </table>
+          </div>
+        </div>
+        <button class="btn" onclick="confirmImport()" style="margin-top:12px;">Importer ces opérations</button>
+      </div>
+    </div>
+
     <div id="syncBanner" class="sync-banner local">Non connecté — stockage local uniquement.</div>
 
     <div class="card">
