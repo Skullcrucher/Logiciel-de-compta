@@ -9,7 +9,7 @@ Application de suivi de budget qui tient dans un seul fichier, `index.html` : im
 - **Plusieurs comptes**, solde initial par compte, et **solde après chaque opération** quand un compte est sélectionné.
 - **Pointage et rapprochement bancaire** : cochez les opérations vérifiées, puis comparez le solde de l'appli avec celui de la banque à une date donnée.
 - **Catégories et règles de tri automatique** (modifiables et ordonnables). On peut aussi créer une règle directement depuis une opération.
-- **Budgets** mensuels et annuels, et provisions.
+- **Budgets** mensuels et annuels, et provisions, en trois sous-onglets. Le **bilan mensuel** fonctionne comme des « enveloppes » : on reporte un surplus ou un dépassement sur le mois suivant, ou on met le reste de côté. Un bouton crée des **budgets moyens depuis le 1er janvier**.
 - **Échéancier** :
   - opérations récurrentes (loyer, salaire, abonnements…), qui avancent automatiquement quand l'opération correspondante est importée ;
   - suggestions tirées de l'historique ;
@@ -18,6 +18,10 @@ Application de suivi de budget qui tient dans un seul fichier, `index.html` : im
 - **Recherche** par libellé, note ou montant, et filtres par période, catégorie et pointage.
 - **Annuler** (Ctrl+Z) les 15 dernières modifications.
 - Export CSV et PDF, sauvegarde JSON (avec un rappel si aucune n'a été faite depuis 30 jours), synchronisation Google Drive.
+
+## Mettre à jour l'appli
+
+Repartez **toujours du `index.html` actuel de la branche `main`** pour faire une modification, puis renvoyez-le sur GitHub. Si vous renvoyez une copie plus ancienne, les fonctions ajoutées depuis disparaissent, et la connexion à Google Drive peut échouer (le code secret n'est plus envoyé). Au prochain chargement de la bonne version, l'appli récupère automatiquement depuis Drive les données que l'ancienne version a effacées.
 
 ## Utilisation
 
