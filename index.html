@@ -278,6 +278,16 @@
   .bar-fill{ height:100%; background:var(--green); border-radius:var(--radius-pill); }
   .bar-fill.exp{ background:var(--terracotta); }
   .cat-row{ margin-bottom:14px; }
+  .cat-row.goto{ cursor:pointer; border-radius:10px; margin-left:-8px; margin-right:-8px; padding:6px 8px; transition:background .15s; }
+  .cat-row.goto:hover{ background:var(--surface-2); }
+  .link-btn{ background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; text-align:left; cursor:pointer;
+    text-decoration:underline; text-decoration-color:color-mix(in srgb, currentColor 35%, transparent); text-underline-offset:3px; }
+  .link-btn:hover{ color:var(--green); text-decoration-color:currentColor; }
+  .link-btn .go{ font-size:.85em; color:var(--muted); margin-left:4px; }
+  .filter-chip{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 12px; margin:0 0 10px; border-radius:var(--radius-sm);
+    background:color-mix(in srgb, var(--green) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--green) 35%, transparent); font-size:14px; }
+  .filter-chip strong{ color:var(--green); }
+  .filter-chip:focus{ outline:none; }
   .cat-row .top{ display:flex; justify-content:space-between; gap:10px; font-size:14px; margin-bottom:6px; }
   .cat-row .name{ font-weight:600; }
   .cat-row .amt{ font-family:var(--font-mono); color:var(--muted); }
@@ -449,6 +459,7 @@
             <button class="btn secondary small" onclick="exportCsv()" title="Exporte les opérations affichées (compte et filtres en cours)">⭳ Export CSV</button>
           </div>
         </div>
+        <div id="activeFilterChip" class="filter-chip" role="status" style="display:none;"></div>
         <div class="grid-form" style="margin-bottom:6px;">
           <div class="field">
             <label>Recherche</label>
@@ -1878,6 +1889,61 @@ document.querySelector("nav.main-tabs").addEventListener("keydown", (e)=>{
   tabs[j].focus();
 });
 
+/* Ouvre le journal sur les opérations d'une portée de budget (catégorie principale ou
+   sous-catégorie), pour un mois (« AAAA-MM »), une année (« AAAA ») ou toute la période (""). */
+function lastDayOfMonth(monthStr){
+  const [y, m] = monthStr.split("-").map(Number);
+  return `${monthStr}-${pad2(new Date(y, m, 0).getDate())}`;
+}
+function showScopeTransactions(type, value, period){
+  const set = (id, v)=>{ const el = document.getElementById(id); if(el) el.value = v; };
+  set("filterSearch", ""); set("filterMonth", ""); set("filterChecked", "");
+  document.getElementById("onlyUncategorized").checked = false;
+  renderCategories(); // garantit que l'option de la portée existe
+  set("filterCategory", type === "group" ? "g:" + value : value);
+  let from = "", to = "";
+  if(/^\d{4}-\d{2}$/.test(period || "")){ from = period + "-01"; to = lastDayOfMonth(period); }
+  else if(/^\d{4}$/.test(period || "")){ from = period + "-01-01"; to = period + "-12-31"; }
+  set("filterFrom", from); set("filterTo", to);
+  activateTab("transactions");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  const chip = document.getElementById("activeFilterChip");
+  if(chip){ chip.tabIndex = -1; chip.focus({ preventScroll:true }); }
+}
+function clearTransactionFilters(){
+  ["filterSearch","filterCategory","filterMonth","filterFrom","filterTo","filterChecked"].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ""; });
+  document.getElementById("onlyUncategorized").checked = false;
+  renderTransactions();
+}
+/* Résumé du filtre actif, affiché en haut du journal quand on arrive depuis un budget. */
+function renderActiveFilterChip(){
+  const chip = document.getElementById("activeFilterChip");
+  if(!chip) return;
+  const cat = document.getElementById("filterCategory").value;
+  const from = document.getElementById("filterFrom").value, to = document.getElementById("filterTo").value;
+  if(!cat && !from && !to){ chip.style.display = "none"; chip.innerHTML = ""; return; }
+  let what = "toutes catégories";
+  if(cat === "__none__") what = "opérations non catégorisées";
+  else if(cat.startsWith("g:")) what = cat.slice(2) + " (tous les sous-postes)";
+  else if(cat){ const c = state.categories.find(x=>x.id===cat); what = c ? categoryLabel(c) : "catégorie supprimée"; }
+  let when = "";
+  if(from && to && from.slice(0,7) === to.slice(0,7) && from.endsWith("-01") && to === lastDayOfMonth(from.slice(0,7))) when = monthLabelFr(from.slice(0,7));
+  else if(from && to && from.endsWith("-01-01") && to.endsWith("-12-31") && from.slice(0,4) === to.slice(0,4)) when = "année " + from.slice(0,4);
+  else if(from || to) when = (from ? "du " + from.split("-").reverse().join("/") : "") + (to ? " au " + to.split("-").reverse().join("/") : "");
+  const rows = getFilteredTransactions();
+  const total = rows.reduce((s,t)=>s+t.amount, 0);
+  chip.style.display = "flex";
+  chip.innerHTML = `<span>🔎 <strong>${escapeHtml(what)}</strong>${when ? " · " + escapeHtml(when) : ""} — ${rows.length} opération(s), solde ${euro(total)}</span>
+    <button type="button" class="btn secondary small" onclick="clearTransactionFilters()">✕ Effacer le filtre</button>`;
+}
+// Clic (ou Entrée) sur un poste de budget → opérations concernées.
+document.addEventListener("click", (e)=>{
+  const el = e.target.closest("[data-goto-type]");
+  if(!el) return;
+  e.preventDefault();
+  showScopeTransactions(el.dataset.gotoType, el.dataset.gotoValue, el.dataset.gotoPeriod);
+});
+
 /* Raccourci de l'Accueil : ouvre Réglages sur la carte d'import. */
 function goToImport(){
   activateTab("reglages");
@@ -2020,10 +2086,14 @@ function renderCategories(){
   document.getElementById("categoryDatalist").innerHTML =
     state.categories.map(c=>`<option value="${escapeHtml(categoryLabel(c))}">`).join("");
   const catOptions = sorted.map(c=>`<option value="${c.id}">${escapeHtml(categoryLabel(c))}</option>`).join("");
+  const groupOptions = uniqueScopeGroups().map(g=>`<option value="${escapeHtml("g:" + g)}">${escapeHtml(g)} (tous les sous-postes)</option>`).join("");
   const filterSel = document.getElementById("filterCategory");
   const prevFilter = filterSel.value;
-  filterSel.innerHTML = '<option value="">Toutes catégories</option><option value="__none__">Non catégorisé</option>' + catOptions;
-  filterSel.value = (prevFilter === "__none__" || state.categories.some(c=>c.id===prevFilter)) ? prevFilter : "";
+  filterSel.innerHTML = '<option value="">Toutes catégories</option><option value="__none__">Non catégorisé</option>' +
+    `<optgroup label="Catégories principales">${groupOptions}</optgroup><optgroup label="Sous-catégories">${catOptions}</optgroup>`;
+  const stillValid = prevFilter === "__none__" || state.categories.some(c=>c.id===prevFilter) ||
+    (prevFilter.startsWith("g:") && uniqueScopeGroups().some(g=>groupKey(g)===groupKey(prevFilter.slice(2))));
+  filterSel.value = stillValid ? prevFilter : "";
   renderBudgetScopeOptions();
 }
 
@@ -2286,8 +2356,11 @@ function renderBudgetDefinitions(){
   const byLabel = (a,b)=> budgetScopeLabel(a.scope).localeCompare(budgetScopeLabel(b.scope),"fr");
   const monthly = state.budgets.filter(b=>b.period==="monthly").sort(byLabel);
   const annual = state.budgets.filter(b=>b.period==="annual").sort(byLabel);
+  const periodFor = b=> b.period === "annual"
+    ? (document.getElementById("budgetYearPicker").value || String(new Date().getFullYear()))
+    : (document.getElementById("budgetMonthPicker").value || localMonthStr());
   const common = b=>`
-      <td>${escapeHtml(budgetScopeLabel(b.scope))}</td>
+      <td>${gotoLink(budgetScopeLabel(b.scope), b.scope, periodFor(b))}</td>
       <td><label class="chk ${b.kind==='provision'?'on':''}" style="font-size:12px; display:inline-flex;">
             <input type="checkbox" ${b.kind==='provision'?'checked':''} onchange="updateBudgetKind('${b.id}', this.checked)" style="width:auto;"> Provision
           </label></td>
@@ -2410,7 +2483,7 @@ function computeMonthCloseHTML(selMonth, txs){
     const isSurplus = r.diff > 0;
     return `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:9px 0; border-bottom:1px solid var(--border);">
       <div style="flex:1; min-width:160px;">
-        <strong>${escapeHtml(budgetScopeLabel(r.b.scope))}</strong><br>
+        <strong>${gotoLink(budgetScopeLabel(r.b.scope), r.b.scope, selMonth)}</strong><br>
         <span class="hint" style="margin:0;">${euro(r.spent)} dépensé sur ${euro(r.target)} budgété</span>
       </div>
       <span style="font-family:var(--font-mono); font-weight:600; color:${isSurplus?'var(--green)':'var(--terracotta)'};">${(isSurplus?"+":"") + euro(r.diff)}</span>
@@ -2431,14 +2504,23 @@ function yearProgressFraction(year){
   return Math.min(Math.max(elapsed / ((end-start)/86400000), 0), 1);
 }
 
-function renderBudgetProgressRow(label, targetAmount, spent, hint, isProvision){
+/* Attributs qui rendent un élément cliquable vers les opérations d'une portée sur une période
+   (« AAAA-MM » pour un mois, « AAAA » pour une année). */
+function gotoAttrs(scope, period){
+  return `data-goto-type="${escapeHtml(scope.type)}" data-goto-value="${escapeHtml(scope.value)}" data-goto-period="${escapeHtml(period || "")}"`;
+}
+function gotoLink(label, scope, period){
+  return `<button type="button" class="link-btn" ${gotoAttrs(scope, period)} title="Voir les opérations concernées">${escapeHtml(label)}<span class="go" aria-hidden="true">›</span></button>`;
+}
+
+function renderBudgetProgressRow(label, targetAmount, spent, hint, isProvision, scope, period){
   const pct = targetAmount > 0 ? Math.min((spent/targetAmount)*100, 100) : (spent>0?100:0);
   const over = spent > targetAmount;
   const overLabel = isProvision ? " · objectif atteint" : " · dépassement";
   const barClass = (over && !isProvision) ? "exp" : "";
-  return `<div class="cat-row">
+  return `<div class="cat-row${scope ? " goto" : ""}"${scope ? " " + gotoAttrs(scope, period) : ""}>
     <div class="top">
-      <span class="name">${escapeHtml(label)}</span>
+      <span class="name">${scope ? gotoLink(label, scope, period) : escapeHtml(label)}</span>
       <span class="figures">${euro(spent)} / ${euro(targetAmount)}${over ? overLabel : ""}</span>
     </div>
     <div class="bar-track"><div class="bar-fill ${barClass}" style="width:${pct}%"></div></div>
@@ -2467,7 +2549,7 @@ function computeBudgetTrackingHTML(selMonth, selYear, txs){
     const isProv = b.kind === "provision";
     const adj = budgetAdjustmentFor(b.id, selMonth);
     const hint = adj ? (adj>0 ? `dont ${euro(adj)} reporté(s) du mois précédent` : `dont ${euro(Math.abs(adj))} de compensation du mois précédent`) : null;
-    return renderBudgetProgressRow(budgetScopeLabel(b.scope) + " (mensuel" + (isProv?", provision":"") + ")", target, spent, hint, isProv);
+    return renderBudgetProgressRow(budgetScopeLabel(b.scope) + " (mensuel" + (isProv?", provision":"") + ")", target, spent, hint, isProv, b.scope, selMonth);
   }).join("");
 
   let annualTargetSum = 0, annualSpentSum = 0;
@@ -2479,7 +2561,7 @@ function computeBudgetTrackingHTML(selMonth, selYear, txs){
     annualTargetSum += target; annualSpentSum += spent;
     const isProv = b.kind === "provision";
     const hint = b.smooth ? `rythme attendu à date sur un objectif annuel de ${euro(b.amount)}` : (isProv ? "objectif de réserve annuel" : "objectif annuel");
-    annualRows.push(renderBudgetProgressRow(budgetScopeLabel(b.scope) + " (annuel" + (isProv?", provision":"") + (b.smooth?", lissé":"") + ")", target, spent, hint, isProv));
+    annualRows.push(renderBudgetProgressRow(budgetScopeLabel(b.scope) + " (annuel" + (isProv?", provision":"") + (b.smooth?", lissé":"") + ")", target, spent, hint, isProv, b.scope, selYear));
   });
 
   // Budgets annuels dérivés : pour toute portée qui a un budget mensuel mais pas de budget
@@ -2493,7 +2575,7 @@ function computeBudgetTrackingHTML(selMonth, selYear, txs){
     const isProv = b.kind === "provision";
     annualRows.push(renderBudgetProgressRow(
       budgetScopeLabel(b.scope) + " (annuel, dérivé du mensuel" + (isProv?", provision":"") + ")",
-      target, spent, `= 12 × ${euro(b.amount)}/mois`, isProv
+      target, spent, `= 12 × ${euro(b.amount)}/mois`, isProv, b.scope, selYear
     ));
   });
   const annualHTML = annualRows.join("");
@@ -3478,6 +3560,7 @@ function getFilteredTransactions(){
   }
   if(onlyUncategorized) rows = rows.filter(t=>!t.categoryId);
   else if(catFilter === "__none__") rows = rows.filter(t=>!t.categoryId);
+  else if(catFilter.startsWith("g:")){ const scope = { type:"group", value: catFilter.slice(2) }; rows = rows.filter(t=>txMatchesScope(t, scope)); }
   else if(catFilter) rows = rows.filter(t=>t.categoryId === catFilter);
   if(monthFilter) rows = rows.filter(t=>monthKey(t.date) === monthFilter);
   if(from) rows = rows.filter(t=>t.date && t.date >= from);
@@ -3584,6 +3667,7 @@ function renderTransactions(){
 
   renderBulkBar();
   renderKpis();
+  renderActiveFilterChip();
 }
 
 function showMoreTransactions(all){
@@ -4351,8 +4435,8 @@ function renderDashboard(){
 
   const maxVal = Math.max(...totalsByCat.map(x=>x.total), 1);
   document.getElementById("dashCatsEmpty").style.display = totalsByCat.length ? "none" : "block";
-  document.getElementById("dashCats").innerHTML = totalsByCat.map(x=>`<div class="cat-row">
-      <div class="top"><span class="name">${escapeHtml(categoryLabel(x.cat))}</span><span class="amt">${euro(x.total)}</span></div>
+  document.getElementById("dashCats").innerHTML = totalsByCat.map(x=>`<div class="cat-row goto" ${gotoAttrs({ type:"category", value:x.cat.id }, monthFilter)}>
+      <div class="top"><span class="name">${gotoLink(categoryLabel(x.cat), { type:"category", value:x.cat.id }, monthFilter)}</span><span class="amt">${euro(x.total)}</span></div>
       <div class="bar-track"><div class="bar-fill exp" style="width:${(x.total/maxVal)*100}%"></div></div>
     </div>`).join("");
 
