@@ -6,221 +6,417 @@
 <title>Comptes de la famille</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&family=VT323&display=swap" rel="stylesheet">
+<script>
+  /* Applique le thème et la taille du texte avant l'affichage (évite un flash de l'ancien thème). */
+  try{
+    var t = localStorage.getItem("familyBudget_theme"); if(t && t !== "auto") document.documentElement.setAttribute("data-theme", t);
+    var z = localStorage.getItem("familyBudget_textSize"); if(z && z !== "md") document.documentElement.setAttribute("data-size", z);
+  }catch(e){}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
+  /* ================= Thèmes =================
+     Les couleurs passent toutes par ces variables : le thème (Réglages → Apparence) ne fait que
+     les redéfinir. Contrastes vérifiés AA (≥ 4,5:1) pour le texte sur fond de carte. */
   :root{
-    --bg:#F4F6F8; --surface:#FFFFFF; --surface-2:#EAEEF2; --border:#DBE2E8;
-    --ink:#1F2933; --muted:#64748B;
-    --green:#12806B;
-    --terracotta:#DD5E4C; --gold:#C99A2E; --blue:#3B6FD1;
-    --font-display:"Lora", Georgia, serif;
-    --font-body:"Inter", -apple-system, "Segoe UI", sans-serif;
-    --font-mono:"IBM Plex Mono", "Courier New", monospace;
+    --bg:#F4F6FA; --surface:#FFFFFF; --surface-2:#EEF2F7; --border:#D8E0EA;
+    --ink:#17212B; --muted:#56657A;
+    --green:#0D7A63; --green-hover:#0A6652; --on-primary:#FFFFFF;
+    --terracotta:#C23E2B; --gold:#946300; --blue:#2F63D0;
+    --tag-green:#0A5C4B; --tag-red:#9E2E1E; --tag-blue:#234FA8;
+    --c1:#0D7A63; --c2:#D2503C; --c3:#C99A2E; --c4:#3B6FD1; --c5:#8B5CF6; --c6:#4C9F70; --c7:#E0836F; --c8:#5B8AA6;
+    --radius:16px; --radius-sm:11px; --radius-pill:999px;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.06);
+    --shadow-pop:0 12px 40px rgba(16,24,40,.18);
+    --focus:#2F63D0;
+    --font-display:"Plus Jakarta Sans", "Inter", -apple-system, "Segoe UI", sans-serif;
+    --font-body:"Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono:"Inter", -apple-system, "Segoe UI", sans-serif;
+    color-scheme: light;
   }
-  :root:not([data-theme="light"]){ color-scheme: light dark; }
   @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#11151C; --surface:#1A2029; --surface-2:#232A35; --border:#323B48;
-      --ink:#E7ECF2; --muted:#8B98AA; --green:#2FB897; --terracotta:#EF8574; --gold:#E8BE64; --blue:#749DF2;
+    :root:not([data-theme]), :root[data-theme="auto"]{
+    --tag-green:initial; --tag-red:initial; --tag-blue:initial;
+      --bg:#0E131A; --surface:#161D26; --surface-2:#1F2833; --border:#2D3846;
+      --ink:#E9EEF4; --muted:#A0AEBF;
+      --green:#3CCBA6; --green-hover:#5AD8B7; --on-primary:#062019;
+      --terracotta:#FF8B79; --gold:#F2C14E; --blue:#86ADFF;
+      --c1:#3CCBA6; --c2:#FF8B79; --c3:#F2C14E; --c4:#86ADFF; --c5:#B79CFF; --c6:#7FD39B; --c7:#FFB199; --c8:#8FB7CF;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+      --focus:#86ADFF;
+      color-scheme: dark;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#11151C; --surface:#1A2029; --surface-2:#232A35; --border:#323B48;
-    --ink:#E7ECF2; --muted:#8B98AA; --green:#2FB897; --terracotta:#EF8574; --gold:#E8BE64; --blue:#749DF2;
+    --tag-green:initial; --tag-red:initial; --tag-blue:initial;
+    --bg:#0E131A; --surface:#161D26; --surface-2:#1F2833; --border:#2D3846;
+    --ink:#E9EEF4; --muted:#A0AEBF;
+    --green:#3CCBA6; --green-hover:#5AD8B7; --on-primary:#062019;
+    --terracotta:#FF8B79; --gold:#F2C14E; --blue:#86ADFF;
+    --c1:#3CCBA6; --c2:#FF8B79; --c3:#F2C14E; --c4:#86ADFF; --c5:#B79CFF; --c6:#7FD39B; --c7:#FFB199; --c8:#8FB7CF;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    --focus:#86ADFF;
+    color-scheme: dark;
   }
+  /* ---- Thème « Minitel » : vidéotex, 8 couleurs sur fond noir, police bitmap, vidéo inverse ---- */
+  :root[data-theme="minitel"]{
+    --tag-green:initial; --tag-red:initial; --tag-blue:initial;
+    --bg:#000000; --surface:#000000; --surface-2:#0B0B0B; --border:#2F7BFF;
+    --ink:#FFFFFF; --muted:#00FFFF;
+    --green:#00FF66; --green-hover:#66FF99; --on-primary:#000000;
+    --terracotta:#FF4545; --gold:#FFFF00; --blue:#4DA6FF;
+    --c1:#00FF66; --c2:#FF4545; --c3:#FFFF00; --c4:#4DA6FF; --c5:#FF00FF; --c6:#00FFFF; --c7:#FFFFFF; --c8:#FF9900;
+    --radius:0; --radius-sm:0; --radius-pill:0;
+    --shadow:none; --shadow-pop:none;
+    --focus:#FFFF00;
+    --font-display:"VT323", "Courier New", monospace;
+    --font-body:"VT323", "Courier New", monospace;
+    --font-mono:"VT323", "Courier New", monospace;
+    color-scheme: dark;
+  }
+
+  /* Taille du texte (Réglages → Apparence) */
+  html[data-size="lg"] .wrap{ zoom:1.12; }
+  html[data-size="xl"] .wrap{ zoom:1.25; }
+
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
-  body{ background:var(--bg); color:var(--ink); font-family:var(--font-body); min-height:100vh; line-height:1.5; }
-  .wrap{ max-width:1080px; margin:0 auto; padding:26px 20px 80px; }
+  body{ background:var(--bg); color:var(--ink); font-family:var(--font-body); min-height:100vh; line-height:1.5;
+    font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+  .wrap{ max-width:1120px; margin:0 auto; padding:18px 20px 90px; }
+  :focus-visible{ outline:3px solid var(--focus); outline-offset:2px; border-radius:6px; }
+  main:focus{ outline:none; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .skip-link{ position:absolute; left:12px; top:-60px; z-index:5000; background:var(--ink); color:var(--bg); padding:10px 14px; border-radius:10px; font-weight:600; text-decoration:none; }
+  .skip-link:focus{ top:12px; }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
 
-  header.led{
-    background:var(--surface); border:1px solid var(--border); border-radius:6px;
-    padding:22px 26px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
-  }
-  header.led h1{ font-family:var(--font-display); font-weight:700; font-size:clamp(24px,4vw,32px); margin:0 0 6px; }
-  header.led input#famTitle{
-    font-family:var(--font-display); font-weight:700; font-size:clamp(22px,4vw,30px);
-    background:transparent; border:none; border-bottom:1px dashed var(--border); color:var(--ink);
-    padding:2px 0; width:280px; max-width:60vw;
-  }
-  header.led input#famTitle:focus{ outline:none; border-bottom-color:var(--green); }
-  header.led .sub{ color:var(--muted); font-size:13px; }
-  .kpis{ display:flex; gap:22px; flex-wrap:wrap; }
-  .kpi{ text-align:right; }
-  .kpi .l{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
-  .kpi .v{ font-family:var(--font-mono); font-size:19px; font-weight:600; }
-  .kpi .v.pos{ color:var(--green); }
-  .kpi .v.neg{ color:var(--terracotta); }
+  /* ================= Barre d'application ================= */
+  .appbar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .brand{ display:flex; align-items:center; gap:10px; font-family:var(--font-display); font-weight:800; font-size:19px; color:var(--ink); letter-spacing:-.01em; }
+  .brand-logo{ width:36px; height:36px; border-radius:var(--radius-sm); display:grid; place-items:center; background:var(--green); color:var(--on-primary); box-shadow:var(--shadow); }
+  .brand-logo svg{ width:20px; height:20px; }
+  .brand .minitel-only{ display:none; }
+  .appbar-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
-  nav.tabs{ display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid var(--border); flex-wrap:wrap; position:sticky; top:0; z-index:70; background:var(--bg); padding-top:6px; }
-  nav.tabs button{
-    font-family:var(--font-display); font-size:15px; background:none; border:none; color:var(--muted);
-    padding:10px 4px; margin-right:24px; cursor:pointer; border-bottom:3px solid transparent;
+  nav.tabs.main-tabs{
+    position:sticky; top:8px; z-index:70; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none;
+    background:color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter:saturate(1.4) blur(12px);
+    border:1px solid var(--border); border-radius:var(--radius-pill); padding:5px; margin-bottom:18px; box-shadow:var(--shadow);
   }
-  nav.tabs button:hover{ color:var(--ink); }
-  nav.tabs button.active{ color:var(--green); border-bottom-color:var(--green); }
+  nav.tabs.main-tabs::-webkit-scrollbar{ display:none; }
+  nav.tabs.main-tabs button{
+    display:inline-flex; align-items:center; gap:8px; flex:0 0 auto; min-height:42px; padding:0 16px;
+    font:600 14px var(--font-body); color:var(--muted); background:transparent; border:none; border-radius:var(--radius-pill);
+    cursor:pointer; white-space:nowrap; transition:background .15s, color .15s;
+  }
+  nav.tabs.main-tabs button svg{ width:18px; height:18px; flex:none; }
+  nav.tabs.main-tabs button .lbl-short{ display:none; }
+  nav.tabs.main-tabs button:hover{ background:var(--surface-2); color:var(--ink); }
+  nav.tabs.main-tabs button.active{ background:var(--green); color:var(--on-primary); box-shadow:0 2px 8px color-mix(in srgb, var(--green) 35%, transparent); }
 
-  .subtab-btn{
-    font-family: var(--font-display); font-size:14px; background:none; border:none; color:var(--muted);
-    padding:9px 14px; margin-right:18px; cursor:pointer; border-bottom:3px solid transparent;
-  }
+  /* Sous-onglets (Budget) : contrôle segmenté */
+  nav.tabs.subtabs{ display:inline-flex; gap:4px; flex-wrap:wrap; padding:4px; margin:0 0 16px; background:var(--surface-2); border-radius:var(--radius-pill); border:1px solid var(--border); }
+  .subtab-btn{ min-height:38px; padding:0 16px; font:600 13.5px var(--font-body); color:var(--muted); background:transparent; border:none; border-radius:var(--radius-pill); cursor:pointer; }
   .subtab-btn:hover{ color:var(--ink); }
-  .subtab-btn.active{ color:var(--green); border-bottom-color:var(--green); }
+  .subtab-btn.active{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
   .budget-subview{ display:none; }
   .budget-subview.active{ display:block; }
 
   .toolbar{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
-
   section.view{ display:none; }
-  section.view.active{ display:block; }
+  section.view.active{ display:block; animation:fadein .18s ease-out; }
+  @keyframes fadein{ from{ opacity:0; transform:translateY(4px); } to{ opacity:1; transform:none; } }
 
-  .card{ background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 18px; margin-bottom:14px; }
-  .tx-sticky-bar{
-    position: sticky; top: 56px; z-index: 60;
-    background: var(--surface); padding-top: 18px; padding-bottom: 10px;
+  /* ================= Accueil ================= */
+  header.led{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:22px 24px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:18px;
   }
-  .card h2{ font-family:var(--font-display); font-size:17px; font-weight:600; margin:0 0 3px; }
-  .card .sub{ color:var(--muted); font-size:12.5px; margin:0 0 12px; }
+  header.led input#famTitle{
+    font-family:var(--font-display); font-weight:800; font-size:clamp(22px,4vw,30px); letter-spacing:-.02em;
+    background:transparent; border:none; border-bottom:2px dashed transparent; color:var(--ink);
+    padding:2px 0; width:320px; max-width:70vw; border-radius:0;
+  }
+  header.led input#famTitle:hover{ border-bottom-color:var(--border); }
+  header.led input#famTitle:focus{ outline:none; border-bottom-color:var(--green); }
+  header.led .sub{ color:var(--muted); font-size:13.5px; }
+  .kpis{ display:grid; grid-template-columns:repeat(3, minmax(140px, 1fr)); gap:10px; flex:1 1 460px; max-width:620px; }
+  .kpi{ background:var(--surface-2); border-radius:var(--radius-sm); padding:12px 14px; }
+  .kpi .l{ font-size:12px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:4px; }
+  .kpi .v{ font-family:var(--font-display); font-size:22px; font-weight:800; letter-spacing:-.01em; margin-top:2px; }
+  .kpi .v.pos{ color:var(--green); }
+  .kpi .v.neg{ color:var(--terracotta); }
+  .kpi .hint{ margin-top:4px !important; }
+  .quick-actions{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px; }
+  .quick-action{
+    display:flex; align-items:center; gap:12px; text-align:left; width:100%; min-height:64px; padding:14px 16px;
+    background:var(--surface); color:var(--ink); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+    font:600 14.5px var(--font-body); cursor:pointer; transition:transform .1s, border-color .15s;
+  }
+  .quick-action:hover{ border-color:var(--green); transform:translateY(-1px); }
+  .quick-action .qa-ico{ width:40px; height:40px; border-radius:var(--radius-sm); display:grid; place-items:center; flex:none;
+    background:color-mix(in srgb, var(--green) 14%, transparent); color:var(--green); }
+  .quick-action .qa-ico svg{ width:20px; height:20px; }
+  .quick-action small{ display:block; font-weight:500; color:var(--muted); font-size:12.5px; }
 
-  label{ font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+  /* ================= Cartes, formulaires ================= */
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; margin-bottom:16px; box-shadow:var(--shadow); }
+  .card.danger{ border-color:color-mix(in srgb, var(--terracotta) 55%, var(--border)); }
+  .tx-sticky-bar{ position:sticky; top:66px; z-index:60; background:var(--surface); padding-top:18px; padding-bottom:10px; }
+  .card h2{ font-family:var(--font-display); font-size:18px; font-weight:700; letter-spacing:-.01em; margin:0 0 4px; }
+  .card .sub{ color:var(--muted); font-size:13px; margin:0 0 14px; }
+
+  label{ font-size:13px; font-weight:500; color:var(--muted); display:block; margin-bottom:6px; }
   input[type=text], input[type=password], input[type=number], input[type=date], input[type=file], select{
-    width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--ink);
-    font:inherit; font-size:14px; padding:9px 10px; border-radius:4px;
+    width:100%; min-height:44px; background:var(--surface); border:1.5px solid var(--border); color:var(--ink);
+    font:inherit; font-size:15px; padding:9px 12px; border-radius:var(--radius-sm); transition:border-color .15s, box-shadow .15s;
   }
-  input:focus, select:focus{ outline:none; border-color:var(--green); }
+  input:hover, select:hover{ border-color:color-mix(in srgb, var(--ink) 25%, var(--border)); }
+  input:focus, select:focus{ outline:none; border-color:var(--focus); box-shadow:0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
+  input[type=checkbox], input[type=radio]{ width:18px; height:18px; accent-color:var(--green); cursor:pointer; }
   .field{ margin-bottom:12px; }
-  .grid-form{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:12px; }
+  .grid-form{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:12px; }
 
-  button.btn{ font-family:var(--font-body); font-weight:600; font-size:14px; background:var(--green); color:#fff;
-    border:none; border-radius:4px; padding:10px 18px; cursor:pointer; }
-  button.btn:hover{ filter:brightness(1.08); }
-  button.btn.secondary{ background:transparent; color:var(--ink); border:1px solid var(--border); }
-  button.btn.small{ padding:6px 12px; font-size:12.5px; }
-  button.btn:disabled{ opacity:.5; cursor:not-allowed; }
-  button.icon-btn{ background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; padding:2px 6px; }
-  button.icon-btn:hover{ color:var(--terracotta); }
+  button.btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 20px;
+    font:600 14.5px var(--font-body); background:var(--green); color:var(--on-primary);
+    border:1.5px solid transparent; border-radius:var(--radius-sm); cursor:pointer;
+    box-shadow:0 1px 2px rgba(0,0,0,.08); transition:background .15s, border-color .15s, transform .05s;
+  }
+  button.btn:hover{ background:var(--green-hover); }
+  button.btn:active{ transform:translateY(1px); }
+  button.btn.secondary{ background:var(--surface); color:var(--ink); border-color:var(--border); box-shadow:none; }
+  button.btn.secondary:hover{ background:var(--surface-2); border-color:color-mix(in srgb, var(--ink) 25%, var(--border)); }
+  button.btn.small{ min-height:36px; padding:0 14px; font-size:13px; }
+  button.btn.danger, button.btn.secondary.danger{ color:var(--terracotta); border-color:color-mix(in srgb, var(--terracotta) 50%, var(--border)); background:var(--surface); }
+  button.btn.danger:hover{ background:color-mix(in srgb, var(--terracotta) 9%, var(--surface)); }
+  button.btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+  button.icon-btn{ display:inline-grid; place-items:center; min-width:34px; height:34px; background:none; border:none; border-radius:10px; color:var(--muted); cursor:pointer; font-size:15px; padding:0 6px; }
+  button.icon-btn:hover{ color:var(--ink); background:var(--surface-2); }
+  button.icon-btn[title="Supprimer"]:hover{ color:var(--terracotta); }
+  button.icon-btn:disabled{ opacity:.35; cursor:default; }
 
-  table{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  th{ text-align:left; font-family:var(--font-display); font-weight:600; font-size:12.5px; color:var(--muted);
-    padding:8px 9px; border-bottom:1px solid var(--border); white-space:nowrap; }
-  td{ padding:8px 9px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  /* ================= Tableaux ================= */
+  table{ width:100%; border-collapse:collapse; font-size:14px; }
+  th{ position:relative; text-align:left; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
+    padding:10px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  td{ padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  tbody tr:hover td{ background:color-mix(in srgb, var(--surface-2) 60%, transparent); }
   tr:last-child td{ border-bottom:none; }
   td.num, th.num{ text-align:right; font-family:var(--font-mono); font-variant-numeric:tabular-nums; }
+  td.amt{ font-weight:600; }
   td.amt.pos{ color:var(--green); } td.amt.neg{ color:var(--terracotta); }
-  .empty{ color:var(--muted); font-size:13px; padding:18px 4px; text-align:center; }
-  .table-scroll{ overflow-x:auto; }
+  tr.row-warn td{ background:color-mix(in srgb, var(--terracotta) 9%, transparent); }
+  .empty{ color:var(--muted); font-size:14px; padding:22px 4px; text-align:center; }
+  .table-scroll{ overflow-x:auto; position:relative; } /* contient aussi les textes .sr-only des en-têtes */
 
-  .tag{ display:inline-block; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:9px; white-space:nowrap; }
-  .tag.rule{ background:rgba(47,93,80,.14); color:var(--green); }
+  .tag{ display:inline-block; font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:var(--radius-pill); white-space:nowrap; }
+  .tag.rule{ background:color-mix(in srgb, var(--green) 14%, transparent); color:var(--tag-green, var(--green)); }
   .tag.manual{ background:var(--surface-2); color:var(--muted); }
-  .tag.import{ background:rgba(58,110,165,.14); color:var(--blue); }
-  .tag.none{ background:rgba(181,83,60,.14); color:var(--terracotta); }
-
-  .catsel{ font-size:12.5px; padding:5px 6px; }
+  .tag.import{ background:color-mix(in srgb, var(--blue) 14%, transparent); color:var(--tag-blue, var(--blue)); }
+  .tag.none{ background:color-mix(in srgb, var(--terracotta) 13%, transparent); color:var(--tag-red, var(--terracotta)); }
 
   /* ---- Sélecteur de catégorie (deux panneaux flottants positionnés en JS) ---- */
   .cat-cell-btn{
-    font: inherit; font-size:12.5px; background:var(--surface-2); border:1px solid var(--border);
-    color:var(--ink); border-radius:3px; padding:5px 8px; cursor:pointer; text-align:left; width:100%;
-    max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font:inherit; font-size:13px; background:var(--surface-2); border:1px solid transparent;
+    color:var(--ink); border-radius:var(--radius-pill); padding:6px 12px; cursor:pointer; text-align:left; width:100%;
+    max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-height:32px;
   }
   .cat-cell-btn:hover{ border-color:var(--green); }
   .cat-cell-btn.empty{ color:var(--muted); font-style:italic; }
-  /* ---- Fenêtres de dialogue maison (remplacent alert/confirm/prompt,
-     bloqués dans certains cadres sécurisés comme le lien Claude publié) ---- */
+
+  /* ---- Fenêtres de dialogue maison ---- */
   .modal-overlay{
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:3000;
+    display:none; position:fixed; inset:0; background:rgba(8,12,18,.55); backdrop-filter:blur(3px); z-index:3000;
     align-items:center; justify-content:center; padding:16px;
   }
   .modal-overlay.open{ display:flex; }
-  .modal-box{ background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:20px 22px; max-width:440px; width:100%; max-height:92vh; overflow-y:auto; }
-  .modal-box.wide{ max-width:680px; }
+  .modal-box{ background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius) + 4px); box-shadow:var(--shadow-pop);
+    padding:22px 24px; max-width:460px; width:100%; max-height:92vh; overflow-y:auto; animation:pop .16s ease-out; }
+  @keyframes pop{ from{ opacity:0; transform:scale(.97); } to{ opacity:1; transform:none; } }
+  .modal-box.wide{ max-width:700px; }
   .modal-box #modalBodyHtml{ white-space:normal; }
-  .modal-box h2{ font-family:var(--font-display); font-size:17px; margin:0 0 8px; }
-  .modal-box .sub{ margin:0 0 14px; white-space:pre-wrap; }
-  .modal-field{ margin-bottom:10px; }
-  .modal-error{ color:var(--terracotta); font-size:12.5px; margin-top:8px; display:none; }
-  .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:6px; }
+  .modal-box h2{ font-family:var(--font-display); font-size:19px; font-weight:700; margin:0 0 8px; }
+  .modal-box .sub{ margin:0 0 14px; white-space:pre-wrap; color:var(--ink); }
+  .modal-field{ margin-bottom:12px; }
+  .modal-error{ color:var(--terracotta); font-size:13px; margin-top:8px; display:none; }
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:8px; flex-wrap:wrap; }
 
   .cat-menu{
-    position:fixed; z-index:1000; background:var(--surface); border:1px solid var(--border); border-radius:5px;
-    box-shadow:0 8px 24px rgba(0,0,0,.25); min-width:190px; max-width:230px; max-height:70vh; overflow-y:auto;
-    overscroll-behavior:contain; padding:4px; display:none;
+    position:fixed; z-index:1000; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-pop); min-width:200px; max-width:240px; max-height:70vh; overflow-y:auto;
+    overscroll-behavior:contain; padding:6px; display:none;
   }
   .cat-menu.open{ display:block; }
-  .cat-menu button{
-    display:block; width:100%; text-align:left; background:none; border:none; font:inherit; font-size:13px;
-    color:var(--ink); padding:7px 10px; border-radius:3px; cursor:pointer;
-  }
+  .cat-menu button{ display:block; width:100%; text-align:left; background:none; border:none; font:inherit; font-size:14px;
+    color:var(--ink); padding:9px 11px; border-radius:8px; cursor:pointer; }
   .cat-menu button:hover{ background:var(--surface-2); }
-  .cat-menu .cat-leaf-clear{ color:var(--muted); border-top:1px solid var(--border); margin-top:4px; padding-top:8px; }
+  .cat-menu .cat-leaf-clear{ color:var(--muted); border-top:1px solid var(--border); margin-top:4px; padding-top:9px; }
   .cat-menu .cat-group-label{ display:flex; justify-content:space-between; align-items:center; }
 
-  .drop{ border:2px dashed var(--border); border-radius:6px; padding:26px; text-align:center; color:var(--muted); }
-  .drop.drag{ border-color:var(--green); color:var(--green); }
+  .drop{ border:2px dashed var(--border); border-radius:var(--radius); padding:30px 20px; text-align:center; color:var(--muted);
+    background:var(--surface-2); font-size:15px; transition:border-color .15s, background .15s; }
+  .drop.drag{ border-color:var(--green); color:var(--green); background:color-mix(in srgb, var(--green) 8%, var(--surface)); }
+  .drop label{ display:inline; font-size:inherit; }
 
-  .hint{ font-size:12px; color:var(--muted); margin-top:8px; }
-  label.chk{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:var(--ink); cursor:pointer; margin:0; }
+  .hint{ font-size:12.5px; color:var(--muted); margin-top:8px; }
+  label.chk{ display:inline-flex; align-items:center; gap:8px; font-size:14px; font-weight:500; color:var(--ink); cursor:pointer; margin:0; min-height:32px; }
   label.chk input{ margin:0; }
   .more-row{ text-align:center; padding:12px 0 4px; }
-  .tx-note{ display:block; font-size:11.5px; color:var(--muted); font-style:italic; }
-  tr.tx-checked td{ opacity:.78; }
+  .tx-note{ display:block; font-size:12px; color:var(--muted); font-style:italic; }
+  tr.tx-checked td{ opacity:.72; }
   .stat-row{ display:flex; gap:28px; flex-wrap:wrap; margin-bottom:12px; }
-  .stat-row .v{ font-family:var(--font-mono); font-weight:600; font-size:17px; }
+  .stat-row .v{ font-family:var(--font-display); font-weight:800; font-size:19px; }
   .badge-late{ color:var(--terracotta); font-weight:600; }
-  .backup-warn{ color:var(--terracotta); }
+  .backup-warn{ color:var(--terracotta); font-weight:500; }
 
-  .bar-track{ height:9px; background:var(--surface-2); border-radius:5px; overflow:hidden; border:1px solid var(--border); }
-  .bar-fill{ height:100%; background:var(--green); }
+  .bar-track{ height:10px; background:var(--surface-2); border-radius:var(--radius-pill); overflow:hidden; }
+  .bar-fill{ height:100%; background:var(--green); border-radius:var(--radius-pill); }
   .bar-fill.exp{ background:var(--terracotta); }
-  .cat-row{ margin-bottom:13px; }
-  .cat-row .top{ display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; }
+  .cat-row{ margin-bottom:14px; }
+  .cat-row .top{ display:flex; justify-content:space-between; gap:10px; font-size:14px; margin-bottom:6px; }
   .cat-row .name{ font-weight:600; }
   .cat-row .amt{ font-family:var(--font-mono); color:var(--muted); }
 
-  select.mapsel{ max-width:220px; }
+  select.mapsel{ max-width:240px; }
   .mapping-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:16px; }
 
-  .sync-banner{ font-size:12.5px; padding:8px 14px; border-radius:5px; margin-bottom:16px; border:1px solid var(--border); }
-  .sync-banner.cloud{ background:rgba(47,93,80,.10); color:var(--green); border-color:rgba(47,93,80,.3); }
+  .sync-banner{ font-size:13.5px; font-weight:500; padding:11px 16px; border-radius:var(--radius-sm); margin-bottom:16px; border:1px solid var(--border); }
+  .sync-banner.cloud{ background:color-mix(in srgb, var(--green) 10%, var(--surface)); color:var(--green); border-color:color-mix(in srgb, var(--green) 35%, transparent); }
   .sync-banner.local{ background:var(--surface-2); color:var(--muted); }
-  .sync-banner.error{ background:rgba(181,83,60,.10); color:var(--terracotta); border-color:rgba(181,83,60,.3); }
+  .sync-banner.error{ background:color-mix(in srgb, var(--terracotta) 10%, var(--surface)); color:var(--terracotta); border-color:color-mix(in srgb, var(--terracotta) 35%, transparent); }
 
-  footer{ text-align:center; color:var(--muted); font-size:12px; margin-top:30px; }
-  @media (max-width:560px){ .wrap{ padding:16px 12px 60px; } header.led{ padding:18px; } }
+  /* ---- Réglages → Apparence ---- */
+  .theme-picker{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; border:none; padding:0; margin:0 0 14px; }
+  .theme-picker legend, .size-picker legend{ font-size:13px; font-weight:600; color:var(--muted); margin-bottom:8px; padding:0; }
+  .theme-option{ position:relative; display:block; cursor:pointer; margin:0; }
+  .theme-option input{ position:absolute; opacity:0; width:1px; height:1px; }
+  .theme-option .tile{ display:block; border:2px solid var(--border); border-radius:var(--radius-sm); padding:10px; background:var(--surface); transition:border-color .15s; }
+  .theme-option input:checked + .tile{ border-color:var(--green); box-shadow:0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+  .theme-option input:focus-visible + .tile{ outline:3px solid var(--focus); outline-offset:2px; }
+  .theme-option .preview{ display:block; height:54px; border-radius:8px; margin-bottom:8px; border:1px solid rgba(0,0,0,.08); }
+  .theme-option .name{ display:block; font-size:14px; font-weight:600; color:var(--ink); }
+  .preview.p-auto{ background:linear-gradient(135deg, #F4F6FA 0 50%, #0E131A 50% 100%); }
+  .preview.p-light{ background:linear-gradient(#FFFFFF 0 40%, #F4F6FA 40%); box-shadow:inset 10px -10px 0 -4px #0D7A63; }
+  .preview.p-dark{ background:linear-gradient(#161D26 0 40%, #0E131A 40%); box-shadow:inset 10px -10px 0 -4px #3CCBA6; }
+  .preview.p-minitel{ background:#000; color:#FFFF00; font:22px/54px "VT323", monospace; text-align:center; letter-spacing:.08em; }
+  .size-picker{ border:none; padding:0; margin:0; }
+  .size-picker .seg{ display:inline-flex; gap:4px; padding:4px; border:1px solid var(--border); border-radius:var(--radius-pill); background:var(--surface-2); flex-wrap:wrap; }
+  .size-picker label{ margin:0; position:relative; }
+  .size-picker input{ position:absolute; opacity:0; width:1px; height:1px; }
+  .size-picker span{ display:inline-block; min-height:36px; line-height:36px; padding:0 16px; border-radius:var(--radius-pill); font-weight:600; color:var(--muted); cursor:pointer; }
+  .size-picker input:checked + span{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
+  .size-picker input:focus-visible + span{ outline:3px solid var(--focus); outline-offset:1px; }
+
+  footer{ text-align:center; color:var(--muted); font-size:12.5px; margin-top:30px; }
+
+  /* ================= Téléphone : onglets en barre du bas ================= */
+  @media (max-width:760px){
+    .wrap{ padding:14px 12px 104px; }
+    header.led{ padding:18px; }
+    .kpis{ grid-template-columns:1fr 1fr 1fr; flex-basis:100%; max-width:none; }
+    .kpis{ gap:8px; }
+    .kpi{ padding:10px 8px; min-width:0; }
+    .kpi .l{ font-size:11px; }
+    .kpi .v{ font-size:15px; white-space:nowrap; }
+    .kpi .hint{ font-size:11px; }
+    nav.tabs.main-tabs{
+      position:fixed; top:auto; bottom:0; left:0; right:0; margin:0; border-radius:18px 18px 0 0; border-bottom:none;
+      padding:6px 4px calc(6px + env(safe-area-inset-bottom)); gap:0; justify-content:space-between;
+      background:color-mix(in srgb, var(--surface) 94%, transparent);
+    }
+    nav.tabs.main-tabs button{ flex:1 1 0; min-width:52px; flex-direction:column; gap:2px; min-height:52px; padding:4px 2px; font-size:10.5px; border-radius:12px; }
+    nav.tabs.main-tabs button svg{ width:22px; height:22px; }
+    nav.tabs.main-tabs button .lbl{ display:none; }
+    nav.tabs.main-tabs button .lbl-short{ display:block; }
+    .tx-sticky-bar{ position:static; } /* sur petit écran, des filtres collés masqueraient la liste */
+    .appbar{ margin-bottom:10px; }
+  }
+
+  /* ================= Habillage Minitel ================= */
+  :root[data-theme="minitel"] body{ letter-spacing:.03em; }
+  /* VT323 n'a qu'une graisse : pas de faux gras (baveux), on joue sur la couleur et la vidéo inverse. */
+  :root[data-theme="minitel"] body *{ font-weight:400 !important; font-synthesis:none; }
+  :root[data-theme="minitel"] header.led input#famTitle{ text-transform:uppercase; color:var(--gold); }
+  :root[data-theme="minitel"] body *{ font-size:19px !important; }
+  :root[data-theme="minitel"] h2, :root[data-theme="minitel"] .kpi .v, :root[data-theme="minitel"] .brand,
+  :root[data-theme="minitel"] header.led input#famTitle, :root[data-theme="minitel"] .stat-row .v{ font-size:28px !important; line-height:1.1; }
+  :root[data-theme="minitel"] h2, :root[data-theme="minitel"] th, :root[data-theme="minitel"] .btn,
+  :root[data-theme="minitel"] nav.tabs button, :root[data-theme="minitel"] .subtab-btn, :root[data-theme="minitel"] .kpi .l,
+  :root[data-theme="minitel"] .tag, :root[data-theme="minitel"] .brand{ text-transform:uppercase; }
+  :root[data-theme="minitel"] h2{ color:var(--gold); font-weight:400; }
+  :root[data-theme="minitel"] .card, :root[data-theme="minitel"] header.led, :root[data-theme="minitel"] .modal-box,
+  :root[data-theme="minitel"] .quick-action, :root[data-theme="minitel"] nav.tabs.main-tabs{ border:2px solid var(--border); backdrop-filter:none; }
+  :root[data-theme="minitel"] .kpi, :root[data-theme="minitel"] .drop{ background:#000; border:2px solid var(--muted); }
+  :root[data-theme="minitel"] .kpi .v{ font-weight:400; }
+  :root[data-theme="minitel"] nav.tabs.main-tabs button.active,
+  :root[data-theme="minitel"] .subtab-btn.active{ background:var(--gold); color:#000; box-shadow:none; }
+  :root[data-theme="minitel"] nav.tabs.main-tabs button, :root[data-theme="minitel"] .subtab-btn{ color:var(--muted); }
+  :root[data-theme="minitel"] button.btn{ background:var(--ink); color:#000; border:2px solid var(--ink); box-shadow:none; font-weight:400; }
+  :root[data-theme="minitel"] button.btn:hover{ background:var(--gold); border-color:var(--gold); }
+  :root[data-theme="minitel"] button.btn.secondary{ background:#000; color:var(--gold); border-color:var(--gold); }
+  :root[data-theme="minitel"] button.btn.secondary:hover{ background:var(--gold); color:#000; }
+  :root[data-theme="minitel"] button.btn.danger{ background:#000; color:var(--terracotta); border-color:var(--terracotta); }
+  :root[data-theme="minitel"] button.btn::before{ content:"▶ "; }
+  :root[data-theme="minitel"] input, :root[data-theme="minitel"] select{ background:#000; border:2px solid var(--muted); color:var(--gold); }
+  :root[data-theme="minitel"] input:focus, :root[data-theme="minitel"] select:focus{ box-shadow:none; border-color:var(--gold); }
+  :root[data-theme="minitel"] .brand-logo{ background:#000; color:var(--gold); border:2px solid var(--gold); box-shadow:none; }
+  :root[data-theme="minitel"] .brand .std-only{ display:none; }
+  :root[data-theme="minitel"] .brand .minitel-only{ display:inline; color:var(--ink); }
+  :root[data-theme="minitel"] .brand .minitel-only b{ background:var(--blue); color:#000; padding:0 6px; font-weight:400; margin-right:6px; }
+  :root[data-theme="minitel"] .brand .cursor{ display:inline-block; width:.6em; background:var(--ink); animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+  :root[data-theme="minitel"] .tag{ background:#000 !important; border:1px solid currentColor; }
+  :root[data-theme="minitel"] .bar-track{ border:1px solid var(--muted); background:#000; }
+  :root[data-theme="minitel"] tbody tr:hover td{ background:#101010; }
+  /* Balayage d'écran cathodique, discret et sans animation */
+  :root[data-theme="minitel"] body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.035) 0 1px, transparent 1px 3px);
+  }
 </style>
 </head>
 <body>
+<a class="skip-link" href="#mainContent">Aller au contenu</a>
 <div class="wrap">
+  <div class="appbar">
+    <div class="brand">
+      <span class="brand-logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 6.5A7 7 0 1 0 17 17.5"/><path d="M4 10h9M4 14h9"/></svg></span>
+      <span class="std-only">Mes comptes</span>
+      <span class="minitel-only"><b>3615</b>MESCOMPTES<span class="cursor" aria-hidden="true">&nbsp;</span></span>
+    </div>
+    <div class="appbar-actions">
+      <span class="hint" id="backupHint" style="margin:0;" role="status">Une sauvegarde manuelle reste possible en complément.</span>
+      <button class="btn secondary small" id="undoBtn" onclick="undoLastChange()" disabled title="Annuler la dernière modification (Ctrl+Z)">↶ Annuler</button>
+    </div>
+  </div>
 
   <datalist id="accountDatalist"></datalist>
 
-  <nav class="tabs">
-    <button class="active" data-view="accueil">Accueil</button>
-    <button data-view="transactions">Transactions</button>
-    <button data-view="regles">Règles &amp; catégories</button>
-    <button data-view="budget">Budget</button>
-    <button data-view="echeancier">Échéancier</button>
-    <button data-view="dashboard">Tableau de bord</button>
-    <button data-view="reglages">Réglages</button>
+  <nav class="tabs main-tabs" role="tablist" aria-label="Sections de l'application">
+    <button type="button" role="tab" id="tab-accueil" data-view="accueil" aria-controls="view-accueil" aria-selected="true" tabindex="0" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span class="lbl">Accueil</span><span class="lbl-short" aria-hidden="true">Accueil</span></button>
+    <button type="button" role="tab" id="tab-transactions" data-view="transactions" aria-controls="view-transactions" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span class="lbl">Transactions</span><span class="lbl-short" aria-hidden="true">Opérations</span></button>
+    <button type="button" role="tab" id="tab-regles" data-view="regles" aria-controls="view-regles" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><path d="M7.5 7.5h.01"/></svg><span class="lbl">Règles &amp; catégories</span><span class="lbl-short" aria-hidden="true">Règles</span></button>
+    <button type="button" role="tab" id="tab-budget" data-view="budget" aria-controls="view-budget" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.4A9 9 0 0 1 20.6 9H15z"/></svg><span class="lbl">Budget</span><span class="lbl-short" aria-hidden="true">Budget</span></button>
+    <button type="button" role="tab" id="tab-echeancier" data-view="echeancier" aria-controls="view-echeancier" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="lbl">Échéancier</span><span class="lbl-short" aria-hidden="true">Échéances</span></button>
+    <button type="button" role="tab" id="tab-dashboard" data-view="dashboard" aria-controls="view-dashboard" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 20h18"/><path d="M6 16v-5M11 16V6M16 16v-8M21 16v-3"/></svg><span class="lbl">Tableau de bord</span><span class="lbl-short" aria-hidden="true">Stats</span></button>
+    <button type="button" role="tab" id="tab-reglages" data-view="reglages" aria-controls="view-reglages" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="lbl">Réglages</span><span class="lbl-short" aria-hidden="true">Réglages</span></button>
   </nav>
 
-  <div class="toolbar">
-    <span class="hint" id="backupHint" style="margin:0;">Une sauvegarde manuelle reste possible en complément.</span>
-    <button class="btn secondary small" id="undoBtn" onclick="undoLastChange()" disabled title="Annuler la dernière modification (Ctrl+Z)">↶ Annuler</button>
-  </div>
+  <main id="mainContent" tabindex="-1">
 
   <!-- ============ ACCUEIL ============ -->
-  <section class="view active" id="view-accueil">
+  <section class="view active" id="view-accueil" role="tabpanel" aria-labelledby="tab-accueil">
     <header class="led">
       <div>
-        <input id="famTitle" type="text" value="Compte personnel">
+        <input id="famTitle" type="text" value="Compte personnel" aria-label="Nom de vos comptes (modifiable)">
         <div class="sub">Import bancaire, tri automatique, suivi mensuel.</div>
         <div style="margin-top:8px;">
-          <label class="hint" style="margin:0 6px 0 0;">Compte :</label>
+          <label class="hint" for="accountFilter" style="margin:0 6px 0 0;">Compte :</label>
           <select id="accountFilter" onchange="onAccountFilterChange()" style="max-width:220px; display:inline-block;"></select>
         </div>
       </div>
@@ -230,11 +426,19 @@
         <div class="kpi"><div class="l">Solde <button class="icon-btn" style="font-size:12px; padding:0 2px;" onclick="editOpeningBalance()" title="Régler le solde initial">✎</button></div><div class="v" id="kpiNet">0,00 €</div><div class="hint" id="obHint" style="margin-top:2px;"></div></div>
       </div>
     </header>
+    <h2 class="sr-only">Raccourcis</h2>
+    <div class="quick-actions">
+      <button type="button" class="quick-action" onclick="goToImport()"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg></span><span>Importer un relevé<small>CSV, OFX ou QIF de votre banque</small></span></button>
+      <button type="button" class="quick-action" onclick="activateTab('transactions'); openTxEditor();"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></span><span>Nouvelle opération<small>Espèces, chèque…</small></span></button>
+      <button type="button" class="quick-action" onclick="activateTab('transactions')"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6h12M9 12h12M9 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg></span><span>Mes opérations<small id="qaToSort">Trier, pointer, rechercher</small></span></button>
+      <button type="button" class="quick-action" onclick="activateTab('budget')"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M15 3.4A9 9 0 0 1 20.6 9H15z"/></svg></span><span>Mon budget<small>Suivi du mois en cours</small></span></button>
+      <button type="button" class="quick-action" onclick="activateTab('echeancier')"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><span>Échéancier<small>Prochains prélèvements et solde prévu</small></span></button>
+    </div>
   </section>
 
 
   <!-- ============ TRANSACTIONS ============ -->
-  <section class="view" id="view-transactions">
+  <section class="view" id="view-transactions" role="tabpanel" aria-labelledby="tab-transactions">
     <div class="card" style="padding-top:0;">
       <div class="tx-sticky-bar">
         <div class="toolbar" style="margin:0 0 10px;">
@@ -298,8 +502,8 @@
       <div class="table-scroll">
         <table>
           <thead><tr>
-            <th><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)" style="width:auto;"></th>
-            <th>Date</th><th>Libellé</th><th class="num">Montant</th><th class="num" id="thBalance" title="Solde du compte après l'opération">Solde</th><th>Catégorie</th><th>Sous-catégorie</th><th>Origine</th><th title="Pointée (vérifiée sur le relevé bancaire)">✓</th><th></th>
+            <th><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)" style="width:auto;" aria-label="Tout sélectionner"><span class="sr-only">Sélection</span></th>
+            <th>Date</th><th>Libellé</th><th class="num">Montant</th><th class="num" id="thBalance" title="Solde du compte après l'opération">Solde</th><th>Catégorie</th><th>Sous-catégorie</th><th>Origine</th><th title="Pointée (vérifiée sur le relevé bancaire)"><span aria-hidden="true">✓</span><span class="sr-only">Pointée</span></th><th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody id="txTable"></tbody>
         </table>
@@ -327,7 +531,7 @@
       <p class="sub">En cas d'import raté ou en double, supprimez-le d'un coup ici plutôt que ligne par ligne.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Fichier</th><th>Compte</th><th>Importé le</th><th class="num">Opérations</th><th></th></tr></thead>
+          <thead><tr><th>Fichier</th><th>Compte</th><th>Importé le</th><th class="num">Opérations</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="importBatchesTable"></tbody>
         </table>
       </div>
@@ -335,7 +539,7 @@
   </section>
 
   <!-- ============ REGLES & CATEGORIES ============ -->
-  <section class="view" id="view-regles">
+  <section class="view" id="view-regles" role="tabpanel" aria-labelledby="tab-regles">
     <div class="card">
       <h2>Catégories</h2>
       <p class="sub">La liste des postes utilisés pour classer les opérations. Une même catégorie peut recevoir des dépenses et des remboursements — ils s'équilibrent automatiquement (pas besoin de distinguer dépense/revenu).</p>
@@ -345,7 +549,7 @@
         <div class="field" style="align-self:end;"><button class="btn" onclick="addCategory()">Ajouter</button></div>
       </div>
       <table>
-        <thead><tr><th>Catégorie principale</th><th>Sous-catégorie</th><th title="Les virements entre vos propres comptes ne sont comptés ni en revenus ni en dépenses">Virement interne</th><th></th></tr></thead>
+        <thead><tr><th>Catégorie principale</th><th>Sous-catégorie</th><th title="Les virements entre vos propres comptes ne sont comptés ni en revenus ni en dépenses">Virement interne</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="catTable"></tbody>
       </table>
     </div>
@@ -359,7 +563,7 @@
         <div class="field" style="align-self:end;"><button class="btn" onclick="addRule()">Ajouter</button></div>
       </div>
       <table>
-        <thead><tr><th>Ordre</th><th>Mot-clé</th><th>Catégorie</th><th></th></tr></thead>
+        <thead><tr><th>Ordre</th><th>Mot-clé</th><th>Catégorie</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="ruleTable"></tbody>
       </table>
       <button class="btn secondary small" style="margin-top:14px;" onclick="reapplyRules()">Réappliquer les règles aux opérations non catégorisées</button>
@@ -367,14 +571,14 @@
   </section>
 
   <!-- ============ BUDGET ============ -->
-  <section class="view" id="view-budget">
+  <section class="view" id="view-budget" role="tabpanel" aria-labelledby="tab-budget">
     <div class="card" id="budgetTotalsCard">
       <h2 style="font-size:15px; margin-bottom:8px;">Total des budgets</h2>
       <div id="budgetTotalsBox"></div>
       <div id="budgetTotalsEmpty" class="empty">Aucun budget défini pour le moment.</div>
     </div>
 
-    <nav class="tabs" style="position:static; padding-top:0; margin-bottom:16px;">
+    <nav class="tabs subtabs" aria-label="Vues du budget">
       <button class="subtab-btn active" data-subtab="monthly" onclick="showBudgetSubTab('monthly')">Budget mensuel</button>
       <button class="subtab-btn" data-subtab="annual" onclick="showBudgetSubTab('annual')">Budget annuel</button>
       <button class="subtab-btn" data-subtab="close" onclick="showBudgetSubTab('close')">Bilan mensuel</button>
@@ -385,7 +589,7 @@
       <div class="card">
         <div class="toolbar">
           <h2 style="margin:0;">Budget mensuel</h2>
-          <select id="budgetMonthPicker" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
+          <select id="budgetMonthPicker" aria-label="Mois suivi" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
         </div>
         <p class="sub">Ce que vous avez prévu de dépenser ce mois-ci, poste par poste, et ce qu'il en reste.</p>
         <div id="budgetSummary"></div>
@@ -437,7 +641,7 @@
           <div class="field" style="align-self:end;"><button class="btn" onclick="addBudgetForPeriod('monthly')">Ajouter</button></div>
         </div>
         <table>
-          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / mois</th><th></th><th></th><th></th></tr></thead>
+          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / mois</th><th><span class="sr-only">Actions</span></th><th><span class="sr-only">Actions</span></th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="budgetDefTable_monthly"></tbody>
         </table>
         <div id="budgetDefEmpty_monthly" class="empty">Aucun budget mensuel défini pour le moment.</div>
@@ -449,7 +653,7 @@
       <div class="card">
         <div class="toolbar">
           <h2 style="margin:0;">Budget annuel</h2>
-          <select id="budgetYearPicker" onchange="renderBudgetTracking()" style="max-width:120px;"></select>
+          <select id="budgetYearPicker" aria-label="Année suivie" onchange="renderBudgetTracking()" style="max-width:120px;"></select>
         </div>
         <p class="sub">Objectifs annuels explicites, ou dérivés automatiquement d'un budget mensuel (× 12) quand aucun budget annuel n'est défini pour la même portée.</p>
         <div id="budgetAnnualList"></div>
@@ -503,7 +707,7 @@
         </div>
         <p class="hint" style="margin-top:-8px;">« Lisser sur l'année » compare vos dépenses au rythme attendu à date plutôt qu'au total annuel complet.</p>
         <table>
-          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / an</th><th>Lissage</th><th></th><th></th><th></th></tr></thead>
+          <thead><tr><th>Portée</th><th>Type</th><th class="num">Montant / an</th><th>Lissage</th><th><span class="sr-only">Actions</span></th><th><span class="sr-only">Actions</span></th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="budgetDefTable_annual"></tbody>
         </table>
         <div id="budgetDefEmpty_annual" class="empty">Aucun budget annuel défini pour le moment.</div>
@@ -516,7 +720,7 @@
         <div class="toolbar">
           <h2 style="margin:0;">Bilan mensuel</h2>
           <div style="display:flex; gap:8px; align-items:center;">
-            <select id="budgetCloseMonthPicker" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
+            <select id="budgetCloseMonthPicker" aria-label="Mois du bilan" onchange="renderBudgetTracking()" style="max-width:160px;"></select>
             <button class="btn secondary small" onclick="exportBudgetPdf()">📄 Exporter en PDF</button>
           </div>
         </div>
@@ -528,11 +732,11 @@
   </section>
 
   <!-- ============ ECHEANCIER ============ -->
-  <section class="view" id="view-echeancier">
+  <section class="view" id="view-echeancier" role="tabpanel" aria-labelledby="tab-echeancier">
     <div class="card">
       <div class="toolbar">
         <h2 style="margin:0;">Prévision de solde</h2>
-        <select id="forecastHorizon" onchange="renderRecurring()" style="max-width:200px;">
+        <select id="forecastHorizon" aria-label="Horizon de la prévision" onchange="renderRecurring()" style="max-width:200px;">
           <option value="eom">Jusqu'à la fin du mois</option>
           <option value="30">30 prochains jours</option>
           <option value="90">90 prochains jours</option>
@@ -572,7 +776,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Libellé</th><th class="num">Montant</th><th>Fréquence</th><th>Prochaine échéance</th><th>Compte</th><th>Catégorie</th><th></th></tr></thead>
+          <thead><tr><th>Libellé</th><th class="num">Montant</th><th>Fréquence</th><th>Prochaine échéance</th><th>Compte</th><th>Catégorie</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="recurringTable"></tbody>
         </table>
       </div>
@@ -584,7 +788,7 @@
       <p class="sub">Opérations retrouvées avec le même libellé et le même montant sur au moins 3 mois différents parmi les 6 derniers.</p>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Libellé</th><th class="num">Montant</th><th>Compte</th><th>Mois concernés</th><th></th></tr></thead>
+          <thead><tr><th>Libellé</th><th class="num">Montant</th><th>Compte</th><th>Mois concernés</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="recurringSuggestTable"></tbody>
         </table>
       </div>
@@ -592,17 +796,17 @@
   </section>
 
   <!-- ============ DASHBOARD ============ -->
-  <section class="view" id="view-dashboard">
+  <section class="view" id="view-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
     <div class="card" id="dashCard_monthlyChart">
       <div class="toolbar">
         <h2 style="margin:0;">Évolution</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <select id="dashChartFreq" onchange="renderDashboard()" style="max-width:180px;">
+          <select id="dashChartFreq" aria-label="Fréquence du graphique" onchange="renderDashboard()" style="max-width:180px;">
             <option value="month">Mensuelle</option>
             <option value="biweek">Toutes les 2 semaines</option>
             <option value="week">Hebdomadaire</option>
           </select>
-          <select id="dashChartAmplitude" onchange="renderDashboard()" style="max-width:170px;">
+          <select id="dashChartAmplitude" aria-label="Nombre de périodes affichées" onchange="renderDashboard()" style="max-width:170px;">
             <option value="12">12 dernières périodes</option>
             <option value="26">26 dernières périodes</option>
             <option value="52">52 dernières périodes</option>
@@ -621,7 +825,7 @@
     <div class="card" id="dashCard_budgetStatus">
       <div class="toolbar">
         <h2 style="margin:0;">État des budgets</h2>
-        <select id="dashMonth" onchange="renderDashboard()" style="max-width:180px;"></select>
+        <select id="dashMonth" aria-label="Mois des budgets affichés" onchange="renderDashboard()" style="max-width:180px;"></select>
       </div>
       <p class="sub">Budgets mensuels du mois sélectionné, et budgets annuels de l'année correspondante.</p>
       <div id="dashBudgetSummary"></div>
@@ -649,7 +853,7 @@
     <div class="card" id="dashCard_yearCompare">
       <div class="toolbar">
         <h2 style="margin:0;">Comparaison annuelle</h2>
-        <select id="yearCompareYear" onchange="renderYearCompare()" style="max-width:120px;"></select>
+        <select id="yearCompareYear" aria-label="Année comparée" onchange="renderYearCompare()" style="max-width:120px;"></select>
       </div>
       <p class="sub" id="yearCompareSub">Dépenses et revenus nets par catégorie principale, comparés à l'année précédente (hors virements internes).</p>
       <div class="table-scroll">
@@ -663,8 +867,8 @@
   </section>
 
   <!-- ============ REGLAGES ============ -->
-  <section class="view" id="view-reglages">
-    <div class="card">
+  <section class="view" id="view-reglages" role="tabpanel" aria-labelledby="tab-reglages">
+    <div class="card" id="importCard">
       <h2>Importer un relevé bancaire (CSV, OFX ou QIF)</h2>
       <p class="sub">Exportez vos opérations depuis votre banque au format CSV, OFX (« format Money ») ou QIF, puis déposez le fichier ici. Seules les colonnes que vous choisissez (date, libellé, montant) sont importées — le reste n'est jamais lu.</p>
       <div class="drop" id="dropZone">
@@ -711,7 +915,7 @@
           <p class="sub" id="missingIntro" style="margin-bottom:10px;"></p>
           <div class="table-scroll">
             <table>
-              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th></th></tr></thead>
+              <thead><tr><th>Date</th><th>Libellé</th><th class="num">Montant</th><th><span class="sr-only">Actions</span></th></tr></thead>
               <tbody id="missingTable"></tbody>
             </table>
           </div>
@@ -720,7 +924,27 @@
       </div>
     </div>
 
-    <div id="syncBanner" class="sync-banner local">Non connecté — stockage local uniquement.</div>
+    <div class="card" id="appearanceCard">
+      <h2>🎨 Apparence</h2>
+      <p class="sub">Réglage propre à cet appareil. « Automatique » suit le mode clair ou sombre du téléphone ou de l'ordinateur.</p>
+      <fieldset class="theme-picker">
+        <legend>Thème</legend>
+          <label class="theme-option"><input type="radio" name="themeChoice" value="auto" onchange="setTheme(this.value)"><span class="tile"><span class="preview p-auto" aria-hidden="true"></span><span class="name">Automatique</span></span></label>
+          <label class="theme-option"><input type="radio" name="themeChoice" value="light" onchange="setTheme(this.value)"><span class="tile"><span class="preview p-light" aria-hidden="true"></span><span class="name">Clair</span></span></label>
+          <label class="theme-option"><input type="radio" name="themeChoice" value="dark" onchange="setTheme(this.value)"><span class="tile"><span class="preview p-dark" aria-hidden="true"></span><span class="name">Sombre</span></span></label>
+          <label class="theme-option"><input type="radio" name="themeChoice" value="minitel" onchange="setTheme(this.value)"><span class="tile"><span class="preview p-minitel" aria-hidden="true">3615</span><span class="name">Minitel</span></span></label>
+      </fieldset>
+      <fieldset class="size-picker">
+        <legend>Taille du texte</legend>
+        <div class="seg">
+          <label><input type="radio" name="sizeChoice" value="md" onchange="setTextSize(this.value)"><span>Normal</span></label>
+          <label><input type="radio" name="sizeChoice" value="lg" onchange="setTextSize(this.value)"><span>Grand</span></label>
+          <label><input type="radio" name="sizeChoice" value="xl" onchange="setTextSize(this.value)"><span>Très grand</span></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <div id="syncBanner" class="sync-banner local" role="status" aria-live="polite">Non connecté — stockage local uniquement.</div>
 
     <div class="card">
       <div class="toolbar">
@@ -762,7 +986,7 @@
         <div class="field" style="align-self:end;"><button class="btn" onclick="addAccount()">Ajouter</button></div>
       </div>
       <table>
-        <thead><tr><th>Nom</th><th></th></tr></thead>
+        <thead><tr><th>Nom</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody id="accountTable"></tbody>
       </table>
     </div>
@@ -779,12 +1003,12 @@
       </div>
     </div>
 
-    <div class="card" style="border-color:var(--terracotta);">
-      <h2 style="color:var(--terracotta); font-size:15px;">⚠️ Zone dangereuse</h2>
+    <div class="card danger">
+      <h2 style="color:var(--terracotta);">⚠️ Zone dangereuse</h2>
       <p class="sub">Ces actions sont irréversibles (sauf avec ↶ Annuler juste après).</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetTransactionsData()">🗑️ Réinitialiser les opérations</button>
-        <button class="btn secondary small" style="color:var(--terracotta); border-color:var(--terracotta);" onclick="resetCategoriesData()">🗑️ Réinitialiser les catégories</button>
+        <button class="btn secondary small danger" onclick="resetTransactionsData()">🗑️ Réinitialiser les opérations</button>
+        <button class="btn secondary small danger" onclick="resetCategoriesData()">🗑️ Réinitialiser les catégories</button>
       </div>
     </div>
   </section>
@@ -794,18 +1018,20 @@
   <div id="catSubmenuPopover" class="cat-menu"></div>
 
   <div id="modalOverlay" class="modal-overlay">
-    <div class="modal-box">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <h2 id="modalTitle"></h2>
       <p class="sub" id="modalMessage"></p>
       <div id="modalBodyHtml" class="sub" style="display:none;"></div>
       <div id="modalFields"></div>
-      <p class="modal-error" id="modalError"></p>
+      <p class="modal-error" id="modalError" role="alert"></p>
       <div class="modal-actions">
         <button class="btn secondary small" id="modalCancelBtn" onclick="modalCancel()">Annuler</button>
         <button class="btn small" id="modalOkBtn" onclick="modalOk()">OK</button>
       </div>
     </div>
   </div>
+
+  </main>
 
   <footer>Vos opérations restent dans ce navigateur (ou sur votre Google Drive si connecté). Aucune donnée n'est envoyée ailleurs.</footer>
 </div>
@@ -983,7 +1209,9 @@ const STORAGE_KEY = "familyBudget_v1";
 let modalState = null;
 
 /* `html` doit déjà être échappé par l'appelant (escapeHtml) ; title/message sont du texte brut. */
+let modalReturnFocus = null;
 function openModal({ title="", message="", html="", fields=[], confirmLabel="OK", cancelLabel="Annuler", danger=false, hideCancel=false, wide=false, onConfirm, onCancel }){
+  if(!isModalOpen()) modalReturnFocus = document.activeElement;
   document.querySelector("#modalOverlay .modal-box").classList.toggle("wide", !!wide);
   document.getElementById("modalTitle").textContent = title;
   document.getElementById("modalTitle").style.display = title ? "block" : "none";
@@ -994,6 +1222,7 @@ function openModal({ title="", message="", html="", fields=[], confirmLabel="OK"
   bodyHtmlEl.style.display = html ? "block" : "none";
   const fieldsBox = document.getElementById("modalFields");
   fieldsBox.innerHTML = fields.map(renderModalField).join("");
+  linkLabelsToFields(fieldsBox);
   const errEl = document.getElementById("modalError");
   errEl.textContent = ""; errEl.style.display = "none";
   const okBtn = document.getElementById("modalOkBtn");
@@ -1009,7 +1238,24 @@ function openModal({ title="", message="", html="", fields=[], confirmLabel="OK"
 function closeModal(){
   document.getElementById("modalOverlay").classList.remove("open");
   modalState = null;
+  const back = modalReturnFocus; modalReturnFocus = null;
+  setTimeout(()=>{
+    if(isModalOpen()) return;
+    // L'élément d'origine peut avoir disparu (ex. raccourci de l'Accueil qui a changé d'onglet).
+    if(back && document.contains(back) && back.offsetParent !== null && typeof back.focus === "function") back.focus();
+    else document.getElementById("mainContent").focus({ preventScroll:true });
+  }, 0);
 }
+// Tab / Maj+Tab restent dans la fenêtre ouverte.
+document.getElementById("modalOverlay").addEventListener("keydown", (e)=>{
+  if(e.key !== "Tab") return;
+  const focusables = Array.from(document.querySelectorAll("#modalOverlay .modal-box :is(input,select,button,textarea,[tabindex]:not([tabindex='-1']))"))
+    .filter(el=>!el.disabled && el.offsetParent !== null);
+  if(!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length-1];
+  if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+});
 /* Champ de fenêtre de dialogue : text (défaut), date, select (f.options = [{value,label}]) ou checkbox. */
 function renderModalField(f){
   const id = "modalField_" + f.id;
@@ -1596,7 +1842,12 @@ const ACTIVE_TAB_KEY = "familyBudget_activeTab";
 function activateTab(view){
   const btn = document.querySelector(`nav.tabs button[data-view="${view}"]`);
   if(!btn) return;
-  document.querySelectorAll("nav.tabs button[data-view]").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll("nav.tabs button[data-view]").forEach(b=>{
+    const on = b === btn;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    b.tabIndex = on ? 0 : -1;
+  });
   document.querySelectorAll("section.view").forEach(v=>v.classList.remove("active"));
   btn.classList.add("active");
   document.getElementById("view-"+view).classList.add("active");
@@ -1611,6 +1862,79 @@ function activateTab(view){
 document.querySelectorAll("nav.tabs button[data-view]").forEach(btn=>{
   btn.addEventListener("click", ()=> activateTab(btn.dataset.view));
 });
+// Flèches gauche/droite, Début/Fin : passer d'un onglet à l'autre au clavier (motif ARIA « tabs »).
+document.querySelector("nav.main-tabs").addEventListener("keydown", (e)=>{
+  const tabs = Array.from(document.querySelectorAll("nav.main-tabs button[data-view]"));
+  const i = tabs.indexOf(document.activeElement);
+  if(i === -1) return;
+  let j = null;
+  if(e.key === "ArrowRight") j = (i + 1) % tabs.length;
+  else if(e.key === "ArrowLeft") j = (i - 1 + tabs.length) % tabs.length;
+  else if(e.key === "Home") j = 0;
+  else if(e.key === "End") j = tabs.length - 1;
+  if(j === null) return;
+  e.preventDefault();
+  activateTab(tabs[j].dataset.view);
+  tabs[j].focus();
+});
+
+/* Raccourci de l'Accueil : ouvre Réglages sur la carte d'import. */
+function goToImport(){
+  activateTab("reglages");
+  const card = document.getElementById("importCard");
+  if(card){
+    card.scrollIntoView({ behavior: "smooth", block: "start" });
+    const pick = card.querySelector('label[for="csvFile"]');
+    if(pick){ pick.setAttribute("tabindex","0"); pick.focus({ preventScroll:true }); }
+  }
+}
+
+/* ---------------- Apparence (thème, taille du texte) ----------------
+   Préférence propre à l'appareil : stockée dans ce navigateur, pas synchronisée. */
+const THEME_KEY = "familyBudget_theme";
+const TEXT_SIZE_KEY = "familyBudget_textSize";
+function currentTheme(){ return lsGet(THEME_KEY) || "auto"; }
+function currentTextSize(){ return lsGet(TEXT_SIZE_KEY) || "md"; }
+function applyAppearance(){
+  const root = document.documentElement;
+  const theme = currentTheme(), size = currentTextSize();
+  if(theme === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", theme);
+  if(size === "md") root.removeAttribute("data-size"); else root.setAttribute("data-size", size);
+  document.querySelectorAll('input[name="themeChoice"]').forEach(r=>{ r.checked = r.value === theme; });
+  document.querySelectorAll('input[name="sizeChoice"]').forEach(r=>{ r.checked = r.value === size; });
+  if(isViewActive("dashboard")) renderDashboard(); // les graphiques reprennent les couleurs du thème
+}
+function setTheme(theme){ lsSet(THEME_KEY, theme); applyAppearance(); }
+function setTextSize(size){ lsSet(TEXT_SIZE_KEY, size); applyAppearance(); }
+try{
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ()=>{ if(currentTheme()==="auto" && isViewActive("dashboard")) renderDashboard(); });
+}catch(e){}
+
+/* Couleur d'une variable CSS du thème courant (pour les graphiques, dessinés hors CSS). */
+function themeColor(name){
+  return getComputedStyle(document.documentElement).getPropertyValue("--" + name).trim() || "#888888";
+}
+function withAlpha(hex, a){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if(!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function applyChartTheme(){
+  if(typeof Chart === "undefined") return;
+  Chart.defaults.color = themeColor("muted");
+  Chart.defaults.borderColor = withAlpha(themeColor("border"), .9);
+  Chart.defaults.font.family = getComputedStyle(document.documentElement).getPropertyValue("--font-body").trim();
+  Chart.defaults.font.size = document.documentElement.getAttribute("data-theme") === "minitel" ? 16 : 12;
+}
+
+/* Associe chaque étiquette à son champ quand le HTML ne le fait pas (lecteurs d'écran, clic sur l'étiquette). */
+function linkLabelsToFields(root){
+  (root || document).querySelectorAll(".field > label:not([for]), .modal-field > label:not([for])").forEach(label=>{
+    const field = label.parentElement.querySelector("input:not([type=checkbox]):not([type=radio]), select");
+    if(field && field.id) label.htmlFor = field.id;
+  });
+}
 
 const famTitleInput = document.getElementById("famTitle");
 famTitleInput.addEventListener("change", ()=>{ state.famTitle = famTitleInput.value.trim() || "Compte personnel"; schedulePersist(); });
@@ -1684,11 +2008,11 @@ function renderCategories(){
   sorted.forEach(cat=>{
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><input type="text" value="${escapeHtml(cat.group||"")}" placeholder="—" style="width:150px;"
+      <td><input type="text" value="${escapeHtml(cat.group||"")}" placeholder="—" style="width:150px;" aria-label="Catégorie principale de ${escapeHtml(cat.name)}"
             onchange="updateCategoryField('${cat.id}','group',this.value)"></td>
-      <td><input type="text" value="${escapeHtml(cat.name)}" style="width:170px;"
+      <td><input type="text" value="${escapeHtml(cat.name)}" style="width:170px;" aria-label="Nom de la sous-catégorie"
             onchange="updateCategoryField('${cat.id}','name',this.value)"></td>
-      <td><input type="checkbox" ${cat.transfer?"checked":""} style="width:auto;" title="Virement entre vos comptes"
+      <td><input type="checkbox" ${cat.transfer?"checked":""} style="width:auto;" title="Virement entre vos comptes" aria-label="Virement interne : ${escapeHtml(categoryLabel(cat))}"
             onchange="updateCategoryTransfer('${cat.id}', this.checked)"></td>
       <td><button class="icon-btn" onclick="removeCategory('${cat.id}')" title="Supprimer">✕</button></td>`;
     tbody.appendChild(tr);
@@ -1738,7 +2062,7 @@ function renderAccountUi(){
   if(tbody){
     tbody.innerHTML = state.accounts.map(a=>`
       <tr>
-        <td><input type="text" value="${escapeHtml(a.name)}" onchange="updateAccountName('${a.id}', this.value)"></td>
+        <td><input type="text" value="${escapeHtml(a.name)}" aria-label="Nom du compte" onchange="updateAccountName('${a.id}', this.value)"></td>
         <td>${state.accounts.length>1 ? `<button class="icon-btn" onclick="removeAccount('${a.id}')">✕</button>` : ""}</td>
       </tr>`).join("");
   }
@@ -1967,7 +2291,7 @@ function renderBudgetDefinitions(){
       <td><label class="chk ${b.kind==='provision'?'on':''}" style="font-size:12px; display:inline-flex;">
             <input type="checkbox" ${b.kind==='provision'?'checked':''} onchange="updateBudgetKind('${b.id}', this.checked)" style="width:auto;"> Provision
           </label></td>
-      <td class="num"><input type="number" min="0" step="1" value="${escapeHtml(b.amount)}" style="width:90px; text-align:right;"
+      <td class="num"><input type="number" min="0" step="1" value="${escapeHtml(b.amount)}" aria-label="Montant du budget ${escapeHtml(budgetScopeLabel(b.scope))}" style="width:90px; text-align:right;"
             onchange="updateBudgetAmount('${b.id}', this.value)"></td>`;
   const actions = b=>`
       <td><button class="btn secondary small" onclick="showBudgetBilan('${b.id}')">📊 Bilan</button></td>
@@ -2559,8 +2883,8 @@ function renderRules(){
         <button class="icon-btn" onclick="moveRule('${r.id}',-1)" ${i===0?"disabled":""} title="Monter">▲</button>
         <button class="icon-btn" onclick="moveRule('${r.id}',1)" ${i===last?"disabled":""} title="Descendre">▼</button>
       </td>
-      <td><input type="text" value="${escapeHtml(r.keyword)}" style="min-width:120px;" onchange="updateRuleKeyword('${r.id}', this.value)"></td>
-      <td><input type="text" list="categoryDatalist" value="${escapeHtml(catFullLabel(r.categoryId))}" placeholder="(catégorie supprimée)" style="min-width:160px;" onchange="updateRuleCategory('${r.id}', this.value)"></td>
+      <td><input type="text" value="${escapeHtml(r.keyword)}" style="min-width:120px;" aria-label="Mot-clé de la règle" onchange="updateRuleKeyword('${r.id}', this.value)"></td>
+      <td><input type="text" list="categoryDatalist" aria-label="Catégorie attribuée par la règle" value="${escapeHtml(catFullLabel(r.categoryId))}" placeholder="(catégorie supprimée)" style="min-width:160px;" onchange="updateRuleCategory('${r.id}', this.value)"></td>
       <td><button class="icon-btn" onclick="removeRule('${r.id}')" title="Supprimer">✕</button></td>
     </tr>`).join("");
 }
@@ -2775,7 +3099,7 @@ function checkMissingFromFile(){
   document.getElementById("missingIntro").textContent =
     `${missing.length} opération(s) du compte « ${accName} » enregistrée(s) entre le ${minDate} et le ${maxDate} n'apparaissent pas dans ce relevé (même libellé + montant, à 2 jours près introuvables). À vérifier au cas par cas : erreur de saisie, opération annulée par la banque, etc.`;
   document.getElementById("missingTable").innerHTML = missing.map(t=>`
-    <tr style="background:rgba(181,83,60,.10);">
+    <tr class="row-warn">
       <td>${escapeHtml(t.date)}</td><td>${escapeHtml(t.label)}</td><td class="num">${euro(t.amount)}</td>
       <td><button class="btn secondary small" onclick="removeTx('${t.id}', checkMissingFromFile)">✕ Supprimer</button></td>
     </tr>`).join("");
@@ -2807,7 +3131,7 @@ function checkDuplicates(){
     `${dups.length} opération(s) de ce fichier ressemblent à une opération déjà enregistrée (même libellé, même montant, à 2 jours d'intervalle maximum). Vérifiez-les une par une ci-dessous : par défaut elles ne seront pas réimportées.`;
   const shown = dups.slice(0, 80);
   document.getElementById("duplicatesTable").innerHTML = shown.map(d=>
-    `<tr style="background:rgba(181,83,60,.10);">
+    `<tr class="row-warn">
        <td>${escapeHtml(d.date)}</td><td>${escapeHtml(d.label)}</td><td class="num">${euro(d.amount)}</td>
        <td class="hint" style="white-space:nowrap;">déjà le ${escapeHtml(d.matchDate)}</td>
        <td><label class="chk" style="display:inline-flex; white-space:nowrap;">
@@ -2852,10 +3176,10 @@ function renderPreview(){
   // Aperçu : les 5 premières lignes, puis jusqu'à 5 lignes rejetées pour que l'utilisateur les voie.
   const shownIdx = [...new Set([...readRows.map((e,i)=>i).slice(0,5),
     ...readRows.map((e,i)=>e.valid ? -1 : i).filter(i=>i>=0).slice(0,5)])].sort((a,b)=>a-b);
-  let html = "<thead><tr><th>Date</th><th>Libellé</th><th class='num'>Montant</th>" + (catCol?"<th>Catégorie (fichier)</th>":"") + "<th></th></tr></thead><tbody>";
+  let html = "<thead><tr><th>Date</th><th>Libellé</th><th class='num'>Montant</th>" + (catCol?"<th>Catégorie (fichier)</th>":"") + "<th><span class='sr-only'>Actions</span></th></tr></thead><tbody>";
   shownIdx.forEach(i=>{
     const r = parsedRows[i], e = readRows[i];
-    html += `<tr${e.valid ? "" : ' style="background:rgba(181,83,60,.10);"'}>
+    html += `<tr${e.valid ? "" : ' class="row-warn"'}>
       <td>${escapeHtml(e.date || "—")}</td><td>${escapeHtml(e.label.slice(0,60))}</td>
       <td class="num">${isNaN(e.amount) ? "—" : euro(e.amount)}</td>
       ${catCol?`<td>${escapeHtml(r[catCol]||"—")}</td>`:""}
@@ -3232,7 +3556,7 @@ function renderTransactions(){
     const subLabel = cat && cat.group ? cat.name : "";
     const bal = balances ? balances.get(t.id) : undefined;
     html.push(`<tr class="${t.checked ? "tx-checked" : ""}">
-      <td><input type="checkbox" class="rowChk" data-id="${t.id}" style="width:auto;" ${selectedIds.has(t.id)?"checked":""}></td>
+      <td><input type="checkbox" class="rowChk" data-id="${t.id}" style="width:auto;" aria-label="Sélectionner ${escapeHtml(t.label)}" ${selectedIds.has(t.id)?"checked":""}></td>
       <td>${escapeHtml(t.date||"—")}</td>
       <td>${escapeHtml(t.label)}${t.note ? `<span class="tx-note">${escapeHtml(t.note)}</span>` : ""}</td>
       <td class="num amt ${t.amount>=0?'pos':'neg'}">${euro(t.amount)}</td>
@@ -3240,7 +3564,7 @@ function renderTransactions(){
       <td><button type="button" class="cat-cell-btn ${mainLabel?"":"empty"}" onclick="openCategoryPicker(event,'${t.id}')">${escapeHtml(mainLabel) || "Choisir…"}</button></td>
       <td><button type="button" class="cat-cell-btn ${subLabel?"":"empty"}" onclick="openCategoryPicker(event,'${t.id}')">${escapeHtml(subLabel) || "—"}</button></td>
       <td>${badge}</td>
-      <td><input type="checkbox" class="pointChk" data-id="${t.id}" style="width:auto;" ${t.checked?"checked":""} title="Pointée (vérifiée sur le relevé)"></td>
+      <td><input type="checkbox" class="pointChk" data-id="${t.id}" style="width:auto;" aria-label="Pointée : ${escapeHtml(t.label)}" ${t.checked?"checked":""} title="Pointée (vérifiée sur le relevé)"></td>
       <td style="white-space:nowrap;"><button class="icon-btn" onclick="openTxEditor('${t.id}')" title="Modifier">✎</button><button class="icon-btn" onclick="removeTx('${t.id}')" title="Supprimer">✕</button></td></tr>`);
   });
   document.getElementById("txTable").innerHTML = html.join("");
@@ -3856,7 +4180,7 @@ function renderBackupHint(){
 
 /* ---------------- Dashboard ---------------- */
 let chartMonthlyInstance = null, chartByCategoryInstance = null;
-const CAT_CHART_COLORS = ["#12806B","#DD5E4C","#C99A2E","#3B6FD1","#8B5CF6","#4C9F70","#E0836F","#5B8AA6"];
+function chartPalette(){ return [1,2,3,4,5,6,7,8].map(i=>themeColor("c"+i)); }
 
 function categoryBucketLabel(cat){
   if(!cat) return "Non catégorisé";
@@ -3933,14 +4257,15 @@ function renderMonthlyChart(periods, agg, freq){
   const { inData, outData } = agg;
   const balanceData = computeRunningBalanceForPeriods(periods, freq);
   const labels = periods.map(p=>periodLabel(p,freq));
+  applyChartTheme();
   chartMonthlyInstance = new Chart(ctx, {
     type: "line",
     data: {
       labels,
       datasets: [
-        { label: "Revenus", data: inData, borderColor: "#12806B", backgroundColor: "rgba(18,128,107,.15)", tension: .25 },
-        { label: "Dépenses", data: outData, borderColor: "#DD5E4C", backgroundColor: "rgba(221,94,76,.15)", tension: .25 },
-        { label: "Solde cumulé", data: balanceData, borderColor: "#C99A2E", borderDash: [5,4], tension: .25 }
+        { label: "Revenus", data: inData, borderColor: themeColor("green"), backgroundColor: withAlpha(themeColor("green"), .15), tension: .25 },
+        { label: "Dépenses", data: outData, borderColor: themeColor("terracotta"), backgroundColor: withAlpha(themeColor("terracotta"), .15), tension: .25 },
+        { label: "Solde cumulé", data: balanceData, borderColor: themeColor("gold"), borderDash: [5,4], tension: .25 }
       ]
     },
     options: {
@@ -3968,18 +4293,19 @@ function renderCategoryTrendChart(periods, agg, freq){
   const otherLabels = sortedLabels.slice(TOP_N);
   const spendOf = (net)=> Math.max(-net, 0);
 
+  const palette = chartPalette();
   const datasets = topLabels.map((label,i)=>({
     label,
     data: netByBucket[label].map(spendOf),
-    borderColor: CAT_CHART_COLORS[i % CAT_CHART_COLORS.length],
-    backgroundColor: CAT_CHART_COLORS[i % CAT_CHART_COLORS.length] + "22",
+    borderColor: palette[i % palette.length],
+    backgroundColor: withAlpha(palette[i % palette.length], .13),
     tension: .25
   }));
   if(otherLabels.length){
     datasets.push({
       label: "Autres",
       data: periods.map((p,i)=> spendOf(otherLabels.reduce((s,l)=>s+netByBucket[l][i],0))),
-      borderColor: "#8B8674", backgroundColor: "#8B867422", tension: .25, borderDash: [4,3]
+      borderColor: themeColor("muted"), backgroundColor: withAlpha(themeColor("muted"), .13), tension: .25, borderDash: [4,3]
     });
   }
 
@@ -3992,6 +4318,7 @@ function renderCategoryTrendChart(periods, agg, freq){
   if(typeof Chart === "undefined"){ showChartLibError(ctx); return; }
   if(topLabels.length === 0 || periods.length === 0) return;
   const labels = periods.map(p=>periodLabel(p,freq));
+  applyChartTheme();
   chartByCategoryInstance = new Chart(ctx, {
     type: "line",
     data: { labels, datasets },
@@ -4293,7 +4620,18 @@ function renderAll(){
   if(isViewActive("echeancier")) renderRecurring();
   renderReconcileBox();
   renderBackupHint();
+  renderHomeHints();
 }
+
+/* Accueil : nombre d'opérations encore à trier, rappelé sur le raccourci « Mes opérations ». */
+function renderHomeHints(){
+  const el = document.getElementById("qaToSort");
+  if(!el) return;
+  const n = getScopedTransactions().filter(t=>!t.categoryId).length;
+  el.textContent = n ? `${n} opération(s) à trier` : "Trier, pointer, rechercher";
+}
+applyAppearance();
+linkLabelsToFields(document);
 initStorage();
 
 // Restaure l'onglet actif de la dernière visite.

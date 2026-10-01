@@ -17,6 +17,13 @@ Application de suivi de budget qui tient dans un seul fichier, `index.html` : im
 - **Tableau de bord** : évolution, habitudes par catégorie, état des budgets, détail mensuel et **comparaison annuelle** (N / N-1).
 - **Recherche** par libellé, note ou montant, et filtres par période, catégorie et pointage.
 - **Annuler** (Ctrl+Z) les 15 dernières modifications.
+- **Apparence** (Réglages) : thème Automatique, Clair, Sombre ou **Minitel** (vidéotex : fond noir, 8 couleurs, police bitmap, vidéo inverse, « 3615 MESCOMPTES »), et taille du texte (Normal, Grand, Très grand). Ce réglage est propre à chaque appareil.
+- **Accessibilité** :
+  - onglets utilisables au clavier (flèches, Début, Fin) et lien « Aller au contenu » ;
+  - chaque champ a un nom lisible par les lecteurs d'écran ;
+  - contrastes conformes au niveau AA ;
+  - animations désactivées si le système le demande ;
+  - sur téléphone, onglets en barre du bas.
 - Export CSV et PDF, sauvegarde JSON (avec un rappel si aucune n'a été faite depuis 30 jours), synchronisation Google Drive.
 
 ## Mettre à jour l'appli
