@@ -288,6 +288,8 @@
     background:color-mix(in srgb, var(--green) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--green) 35%, transparent); font-size:14px; }
   .filter-chip strong{ color:var(--green); }
   .filter-chip:focus{ outline:none; }
+  #filtersCount:not(:empty){ display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px; margin-left:2px;
+    border-radius:var(--radius-pill); background:var(--green); color:var(--on-primary); font-size:11.5px; font-weight:700; }
   .cat-row .top{ display:flex; justify-content:space-between; gap:10px; font-size:14px; margin-bottom:6px; }
   .cat-row .name{ font-weight:600; }
   .cat-row .amt{ font-family:var(--font-mono); color:var(--muted); }
@@ -455,11 +457,13 @@
           <h2 style="margin:0; font-size:16px;">Journal des opérations</h2>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn small" onclick="openTxEditor()">＋ Nouvelle opération</button>
+            <button class="btn secondary small" id="toggleFiltersBtn" aria-expanded="false" aria-controls="txFilters" onclick="toggleTxFilters()">🔎 Rechercher / filtrer<span id="filtersCount"></span></button>
             <button class="btn secondary small" onclick="reapplyRules()">📏 Appliquer les règles</button>
             <button class="btn secondary small" onclick="exportCsv()" title="Exporte les opérations affichées (compte et filtres en cours)">⭳ Export CSV</button>
           </div>
         </div>
         <div id="activeFilterChip" class="filter-chip" role="status" style="display:none;"></div>
+        <div id="txFilters" hidden>
         <div class="grid-form" style="margin-bottom:6px;">
           <div class="field">
             <label>Recherche</label>
@@ -498,6 +502,7 @@
           <label class="chk on" style="display:inline-flex;">
             <input type="checkbox" id="onlyUncategorized" onchange="renderTransactions()" style="width:auto;"> Non catégorisées uniquement
           </label>
+        </div>
         </div>
         <div id="bulkBar" style="display:none; align-items:center; gap:10px; flex-wrap:wrap; background:var(--surface-2); border:1px solid var(--border); border-radius:4px; padding:8px 10px; margin-bottom:10px;">
           <strong id="bulkCount" style="font-size:13px;"></strong>
@@ -1916,24 +1921,49 @@ function clearTransactionFilters(){
   renderTransactions();
 }
 /* Résumé du filtre actif, affiché en haut du journal quand on arrive depuis un budget. */
+/* Bloc « Rechercher / filtrer » du journal : replié par défaut, état mémorisé sur l'appareil. */
+const TX_FILTERS_OPEN_KEY = "familyBudget_txFiltersOpen";
+function setTxFiltersOpen(open){
+  const box = document.getElementById("txFilters"), btn = document.getElementById("toggleFiltersBtn");
+  if(!box || !btn) return;
+  box.hidden = !open;
+  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  lsSet(TX_FILTERS_OPEN_KEY, open ? "1" : "0");
+}
+function toggleTxFilters(){
+  const open = document.getElementById("txFilters").hidden;
+  setTxFiltersOpen(open);
+  if(open) document.getElementById("filterSearch").focus();
+}
+
+/* Résumé des filtres actifs, affiché en haut du journal (utile surtout quand le bloc est replié). */
 function renderActiveFilterChip(){
   const chip = document.getElementById("activeFilterChip");
   if(!chip) return;
-  const cat = document.getElementById("filterCategory").value;
-  const from = document.getElementById("filterFrom").value, to = document.getElementById("filterTo").value;
-  if(!cat && !from && !to){ chip.style.display = "none"; chip.innerHTML = ""; return; }
-  let what = "toutes catégories";
-  if(cat === "__none__") what = "opérations non catégorisées";
-  else if(cat.startsWith("g:")) what = cat.slice(2) + " (tous les sous-postes)";
-  else if(cat){ const c = state.categories.find(x=>x.id===cat); what = c ? categoryLabel(c) : "catégorie supprimée"; }
-  let when = "";
-  if(from && to && from.slice(0,7) === to.slice(0,7) && from.endsWith("-01") && to === lastDayOfMonth(from.slice(0,7))) when = monthLabelFr(from.slice(0,7));
-  else if(from && to && from.endsWith("-01-01") && to.endsWith("-12-31") && from.slice(0,4) === to.slice(0,4)) when = "année " + from.slice(0,4);
-  else if(from || to) when = (from ? "du " + from.split("-").reverse().join("/") : "") + (to ? " au " + to.split("-").reverse().join("/") : "");
+  const val = id=> document.getElementById(id).value;
+  const parts = [];
+  const search = val("filterSearch").trim();
+  if(search) parts.push(`« ${search} »`);
+  const cat = val("filterCategory");
+  if(cat === "__none__") parts.push("non catégorisées");
+  else if(cat.startsWith("g:")) parts.push(cat.slice(2) + " (tous les sous-postes)");
+  else if(cat){ const c = state.categories.find(x=>x.id===cat); parts.push(c ? categoryLabel(c) : "catégorie supprimée"); }
+  if(document.getElementById("onlyUncategorized").checked && cat !== "__none__") parts.push("non catégorisées");
+  const month = val("filterMonth");
+  if(month) parts.push(monthLabelFr(month));
+  const from = val("filterFrom"), to = val("filterTo");
+  if(from && to && from.slice(0,7) === to.slice(0,7) && from.endsWith("-01") && to === lastDayOfMonth(from.slice(0,7))) parts.push(monthLabelFr(from.slice(0,7)));
+  else if(from && to && from.endsWith("-01-01") && to.endsWith("-12-31") && from.slice(0,4) === to.slice(0,4)) parts.push("année " + from.slice(0,4));
+  else if(from || to) parts.push(((from ? "du " + from.split("-").reverse().join("/") : "") + (to ? " au " + to.split("-").reverse().join("/") : "")).trim());
+  const checked = val("filterChecked");
+  if(checked) parts.push(checked === "yes" ? "pointées" : "non pointées");
+  const count = document.getElementById("filtersCount");
+  if(count) count.textContent = parts.length ? String(parts.length) : "";
+  if(!parts.length){ chip.style.display = "none"; chip.innerHTML = ""; return; }
   const rows = getFilteredTransactions();
   const total = rows.reduce((s,t)=>s+t.amount, 0);
   chip.style.display = "flex";
-  chip.innerHTML = `<span>🔎 <strong>${escapeHtml(what)}</strong>${when ? " · " + escapeHtml(when) : ""} — ${rows.length} opération(s), solde ${euro(total)}</span>
+  chip.innerHTML = `<span>🔎 <strong>${escapeHtml(parts[0])}</strong>${parts.length > 1 ? " · " + parts.slice(1).map(escapeHtml).join(" · ") : ""} — ${rows.length} opération(s), solde ${euro(total)}</span>
     <button type="button" class="btn secondary small" onclick="clearTransactionFilters()">✕ Effacer le filtre</button>`;
 }
 // Clic (ou Entrée) sur un poste de budget → opérations concernées.
@@ -4715,6 +4745,7 @@ function renderHomeHints(){
   el.textContent = n ? `${n} opération(s) à trier` : "Trier, pointer, rechercher";
 }
 applyAppearance();
+setTxFiltersOpen(lsGet(TX_FILTERS_OPEN_KEY) === "1");
 linkLabelsToFields(document);
 initStorage();
 
