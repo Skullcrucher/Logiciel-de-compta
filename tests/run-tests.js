@@ -193,6 +193,21 @@ test("les pierres tombales trop anciennes sont oubliées", ()=>{
   assert.deepStrictEqual(Object.keys(m.deleted), ["rules:y"]);
 });
 
+test("differsFrom : l'ordre des clés n'est pas une différence, une opération en plus si", ()=>{
+  const a = { transactions:[{ id:"a", amount:-1, label:"x" }], openingBalances:{ k1:{ amount:1 }, k2:{ amount:2 } } };
+  const b = { openingBalances:{ k2:{ amount:2 }, k1:{ amount:1 } }, transactions:[{ label:"x", id:"a", amount:-1 }] };
+  assert.strictEqual(ctx.differsFrom(a, b), false);
+  b.transactions.push({ id:"b", amount:-2, label:"y" });
+  assert.strictEqual(ctx.differsFrom(a, b), true);
+});
+test("une opération perdue par Drive (écriture concurrente) est conservée à la fusion", ()=>{
+  const local = { updatedAt: 100, transactions: [{ id:"a", mt:90 }, { id:"b", mt:95 }] };
+  const remote = { updatedAt: 200, transactions: [{ id:"a", mt:90 }] }; // « b » écrasé, sans pierre tombale
+  const m = ctx.mergeSyncedStates(local, remote, 1000);
+  assert.deepStrictEqual(J(m.transactions).map(t=>t.id), ["a","b"]);
+  assert.strictEqual(ctx.differsFrom(m, remote), true); // → à renvoyer vers Drive
+});
+
 console.log("Moyens de paiement et rapprochement");
 test("détection du moyen de paiement d'après le libellé", ()=>{
   const methods = [

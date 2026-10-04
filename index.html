@@ -442,6 +442,7 @@
   </nav>
 
   <main id="mainContent" tabindex="-1">
+  <div id="storageWarning" class="sync-banner error" role="alert" hidden></div>
 
   <!-- ============ ACCUEIL ============ -->
   <section class="view active" id="view-accueil" role="tabpanel" aria-labelledby="tab-accueil">
@@ -1090,11 +1091,12 @@
           <li>Copiez l'<strong>URL de l'application Web</strong> affichée : elle commence par <code>https://script.google.com/macros/s/</code> et <strong>se termine par <code>/exec</code></strong>. Collez-la dans le champ « Lien de votre script » ci-dessus, tapez votre code secret dans le champ d'à côté, puis cliquez sur <strong>Connecter</strong>.</li>
           <li>Sur vos autres appareils (téléphone, tablette…), ouvrez l'application et collez le <strong>même lien</strong> et le <strong>même code secret</strong> : tout le monde partage alors les mêmes comptes.</li>
         </ol>
-        <p class="hint"><strong>Vous modifiez le script plus tard ?</strong> Déployer → <strong>Gérer les déploiements</strong> → ✎ → Version : <strong>« Nouvelle version »</strong> → Déployer. Le lien /exec reste le même. (Un « Nouveau déploiement » créerait un nouveau lien.)</p>
+        <p class="hint"><strong>Copies de secours sur Drive :</strong> le script garde chaque jour une copie de vos données dans le dossier <em>« Comptes famille - sauvegardes »</em> de votre Drive (30 derniers jours). Pour revenir à l'une d'elles : téléchargez-la depuis Drive, puis Réglages → <em>Importer une sauvegarde</em>.</p>
+        <p class="hint"><strong>Vous modifiez le script plus tard (ou l'appli vous demande de le mettre à jour) ?</strong> Remplacez tout le code par celui ci-dessus et enregistrez, puis Déployer → <strong>Gérer les déploiements</strong> → ✎ → Version : <strong>« Nouvelle version »</strong> → Déployer. Le lien /exec reste le même. (Un « Nouveau déploiement » créerait un nouveau lien.)</p>
         <p class="hint"><strong>« Code secret refusé » ?</strong> Le code tapé ici doit être exactement la valeur de la propriété TOKEN (attention aux espaces et majuscules).</p>
       </details>
       <script type="text/plain" id="appsScriptSource">/**
- * Script Google Apps Script de sauvegarde pour « Comptes de la famille ».
+ * Script Google Apps Script de sauvegarde pour « Comptes de la famille » — version 2.
  *
  * Installation (une seule fois) :
  *  1. https://script.google.com → Nouveau projet → collez ce fichier à la place du contenu.
@@ -1104,10 +1106,24 @@
  *       Exécuter en tant que : Moi · Qui a accès : Tout le monde
  *  4. Copiez l'URL qui se termine par /exec dans l'application, avec le même code secret.
  *
+ * Mise à jour d'un script existant : collez ce code, Enregistrer, puis Déployer → Gérer les
+ * déploiements → ✎ → Version : « Nouvelle version » → Déployer (le lien /exec ne change pas).
+ *
+ * Protections contre la perte de données (version 2) :
+ *  - écriture conditionnelle : l'appli indique sur quelle version de Drive elle s'est basée
+ *    (`base`) ; si un autre appareil a écrit entre-temps, l'écriture est refusée (« conflict »)
+ *    et l'appli fusionne avant de réessayer : deux appareils ne peuvent plus s'écraser ;
+ *  - une écriture qui viderait toutes les opérations est refusée, sauf suppression volontaire ;
+ *  - avant la première écriture de chaque jour, une copie du fichier est gardée dans le dossier
+ *    « Comptes famille - sauvegardes » de votre Drive (les 30 dernières).
+ *
  * Sans propriété TOKEN, le script accepte toutes les requêtes (ancien comportement) :
  * toute personne connaissant l'URL pourrait alors lire vos opérations.
  */
 const FILE_NAME = "comptes-famille.json";
+const BACKUP_FOLDER = "Comptes famille - sauvegardes";
+const BACKUPS_KEPT = 30;
+const VERSION = 2;
 
 function isAuthorized_(e) {
   const expected = PropertiesService.getScriptProperties().getProperty("TOKEN");
@@ -1124,6 +1140,34 @@ function getFile_() {
   return files.hasNext() ? files.next() : null;
 }
 
+function readJson_(text) {
+  try {
+    const v = JSON.parse(text || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch (err) {
+    return null; // fichier abîmé : on ne bloque pas l'écriture, mais on le sauvegarde d'abord
+  }
+}
+
+function getBackupFolder_() {
+  const folders = DriveApp.getFoldersByName(BACKUP_FOLDER);
+  return folders.hasNext() ? folders.next() : DriveApp.createFolder(BACKUP_FOLDER);
+}
+
+/* Copie du fichier actuel, une fois par jour, avant qu'il soit remplacé. */
+function backupDaily_(text) {
+  const folder = getBackupFolder_();
+  const day = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  const name = "comptes-famille-" + day + ".json";
+  if (folder.getFilesByName(name).hasNext()) return;
+  folder.createFile(name, text, MimeType.PLAIN_TEXT);
+  const all = [];
+  const it = folder.getFiles();
+  while (it.hasNext()) all.push(it.next());
+  all.sort(function (a, b) { return b.getName() < a.getName() ? -1 : b.getName() > a.getName() ? 1 : 0; });
+  all.slice(BACKUPS_KEPT).forEach(function (f) { f.setTrashed(true); });
+}
+
 function doGet(e) {
   if (!isAuthorized_(e)) return json_({ error: "unauthorized" });
   const file = getFile_();
@@ -1135,22 +1179,43 @@ function doGet(e) {
 function doPost(e) {
   if (!isAuthorized_(e)) return json_({ error: "unauthorized" });
   const body = e.postData && e.postData.contents;
+  let data;
   try {
-    const data = JSON.parse(body);
+    data = JSON.parse(body);
     if (!data || typeof data !== "object") throw new Error("format");
   } catch (err) {
     return json_({ error: "invalid_json" });
   }
+  const params = (e && e.parameter) || {};
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const file = getFile_();
-    if (file) file.setContent(body);
-    else DriveApp.createFile(FILE_NAME, body, MimeType.PLAIN_TEXT);
+    if (file) {
+      const currentText = file.getBlob().getDataAsString();
+      const current = readJson_(currentText);
+      if (current) {
+        // Écriture conditionnelle : refusée si Drive a changé depuis la version lue par l'appli.
+        const cur = current.updatedAt;
+        if (params.base !== undefined && cur !== undefined && cur !== null && String(cur) !== String(params.base)) {
+          return json_({ error: "conflict", updatedAt: cur, version: VERSION });
+        }
+        // Jamais de remise à zéro des opérations sans suppression volontaire.
+        const had = Array.isArray(current.transactions) ? current.transactions.length : 0;
+        const has = Array.isArray(data.transactions) ? data.transactions.length : 0;
+        if (had > 0 && has === 0 && params.allowEmpty !== "1") {
+          return json_({ error: "refused_empty", version: VERSION });
+        }
+      }
+      if (currentText) backupDaily_(currentText);
+      file.setContent(body);
+    } else {
+      DriveApp.createFile(FILE_NAME, body, MimeType.PLAIN_TEXT);
+    }
   } finally {
     lock.releaseLock();
   }
-  return json_({ ok: true });
+  return json_({ ok: true, version: VERSION });
 }
 </script>
     </div>
@@ -1185,6 +1250,20 @@ function doPost(e) {
         <button class="btn secondary small" onclick="exportBackup()">⭳ Exporter la sauvegarde</button>
         <button class="btn secondary small" onclick="document.getElementById('importBackupFile').click()">⭱ Importer une sauvegarde</button>
         <input type="file" id="importBackupFile" accept="application/json" style="display:none" onchange="importBackup(this.files[0])">
+      </div>
+    </div>
+
+    <div class="card" id="snapshotsCard">
+      <div class="toolbar">
+        <h2 style="font-size:15px; margin:0;">🛟 Points de restauration</h2>
+        <button class="btn secondary small" onclick="createManualSnapshot()">＋ Créer un point maintenant</button>
+      </div>
+      <p class="sub" style="margin-top:8px;">Copies complètes de vos données, gardées dans ce navigateur : une par jour d'utilisation (14 jours) et une avant chaque opération lourde (import d'une sauvegarde, réinitialisation, suppression d'un import ou d'un compte, synchronisation qui supprime beaucoup d'opérations…). En cas de problème, revenez à l'une d'elles d'un clic.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Date</th><th>Moment</th><th class="num">Contenu</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody id="snapshotTable"><tr><td colspan="4" class="hint">Chargement…</td></tr></tbody>
+        </table>
       </div>
     </div>
 
@@ -1521,6 +1600,20 @@ function mergeSyncedStates(local, remote, now){
   return out;
 }
 
+/* JSON indépendant de l'ordre des clés : sert à savoir si une fusion a apporté quelque chose. */
+function canonicalJson(v){
+  if(Array.isArray(v)) return "[" + v.map(canonicalJson).join(",") + "]";
+  if(v && typeof v === "object"){
+    return "{" + Object.keys(v).filter(k=>v[k] !== undefined).sort().map(k=>JSON.stringify(k) + ":" + canonicalJson(v[k])).join(",") + "}";
+  }
+  return JSON.stringify(v === undefined ? null : v);
+}
+const SYNCED_KEYS = MERGED_COLLECTIONS.concat(["famTitle","openingBalances","reconciliations","dashboardConfig","chartConfig","deleted"]);
+/* La version fusionnée contient-elle quelque chose que `remote` n'a pas ? (→ il faut la renvoyer) */
+function differsFrom(merged, remote){
+  return SYNCED_KEYS.some(k=> canonicalJson(merged[k] == null ? null : merged[k]) !== canonicalJson(remote[k] == null ? null : remote[k]));
+}
+
 /* ---- Moyens de paiement : reconnus d'après le libellé bancaire ---- */
 function normalizeForMatch(s){
   return String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -1556,6 +1649,13 @@ function matchManualEntries(entries, manual, maxDays){
 </script>
 <script>
 const STORAGE_KEY = "familyBudget_v1";
+/* Déclarées tout en haut : utilisées dès le premier enregistrement local, au chargement. */
+let stampBaseline = null;      // état des enregistrements au dernier horodatage (voir stampModifiedRecords)
+let clockFloor = 0;            // horloge « hybride » : jamais en arrière d'une version déjà vue
+let localSaveFailed = false;   // le navigateur a refusé d'enregistrer (stockage plein, mode privé…)
+let localLoadProblem = "";     // données locales illisibles au démarrage
+let unreadableLocalRaw = null; // … conservées telles quelles pour pouvoir les récupérer
+let mirrorTimer = null;
 
 /* ---------------- Fenêtres de dialogue maison ----------------
    Remplacent window.alert/confirm/prompt, qui peuvent être bloqués
@@ -1882,12 +1982,22 @@ const OLD_VERSION_MERGE_KEY = "familyBudget_pendingFieldMerge";
 const FIELDS_UNKNOWN_TO_OLD_VERSIONS = ["recurring","reconciliations","budgetAdjustments"];
 let localWrittenByOldVersion = false;
 
+/* Données locales illisibles (fichier abîmé, version future…) : on ne les écrase JAMAIS. Elles sont
+   copiées à part (localStorage et points de restauration) et l'appli tente de repartir de la
+   copie de secours (IndexedDB) ou de Drive. */
+function keepUnreadableLocal(raw, why){
+  localLoadProblem = why;
+  unreadableLocalRaw = raw;
+  try{ localStorage.setItem(STORAGE_KEY + "_illisible_" + Date.now(), raw); }catch(e){}
+}
 function loadLocalState(){
+  let raw = null;
+  try{ raw = localStorage.getItem(STORAGE_KEY); }
+  catch(e){ localLoadProblem = "Le navigateur refuse l'accès au stockage local (mode privé strict ?)."; return defaultState(); }
+  if(!raw) return defaultState();
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if(!parsed || typeof parsed !== "object") return defaultState();
+    if(!parsed || typeof parsed !== "object" || Array.isArray(parsed)){ keepUnreadableLocal(raw, "Les données enregistrées dans ce navigateur sont illisibles."); return defaultState(); }
     if(!("updatedAt" in parsed)){
       localWrittenByOldVersion = true;
       const missing = FIELDS_UNKNOWN_TO_OLD_VERSIONS.filter(k=>!(k in parsed));
@@ -1897,8 +2007,14 @@ function loadLocalState(){
         localStorage.setItem(OLD_VERSION_MERGE_KEY, JSON.stringify(Array.from(new Set([...pending, ...missing]))));
       }
     }
-    return migrateState(Object.assign(defaultState(), parsed));
-  }catch(e){ return defaultState(); }
+    const s = migrateState(Object.assign(defaultState(), parsed));
+    clockFloor = Math.max(clockFloor, Number(parsed.updatedAt) || 0);
+    return s;
+  }catch(e){
+    console.error(e);
+    keepUnreadableLocal(raw, "Les données enregistrées dans ce navigateur n'ont pas pu être relues (" + (e && e.message ? e.message : "erreur") + ").");
+    return defaultState();
+  }
 }
 
 /* Complète l'état local avec les champs qu'une ancienne version a effacés, depuis Drive. */
@@ -1948,12 +2064,23 @@ function assignStateFrom(src){
   if(src.deleted && typeof src.deleted === "object") state.deleted = src.deleted;
   migrateState(state);
 }
+/* Enregistrement local. Toute modification passe par ici : on y horodate aussi les
+   enregistrements modifiés (pour la fusion entre appareils), et on tient à jour une seconde copie
+   dans IndexedDB. Un échec (stockage plein…) n'est plus silencieux : bandeau d'alerte. */
 function saveLocal(){
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState())); }catch(e){}
+  if(stampBaseline) stampModifiedRecords();
+  let ok = true;
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeState())); }
+  catch(e){ ok = false; console.error(e); }
+  if(ok === localSaveFailed){ localSaveFailed = !ok; renderStorageWarning(); }
+  scheduleMirror();
+  return ok;
 }
 
 let state = loadLocalState();
-saveLocal(); // s'assure que la migration (compte par défaut, etc.) est bien écrite dès le départ
+// S'assure que la migration (compte par défaut, etc.) est bien écrite dès le départ — sauf si les
+// données présentes étaient illisibles : elles ne doivent pas être écrasées par un état vide.
+if(!localLoadProblem) saveLocal();
 
 /* ---------------- Sync automatique via Google Apps Script ----------------
    Chaque sauvegarde porte un horodatage `updatedAt`. Avant d'écrire sur Drive, on vérifie que la
@@ -1993,10 +2120,15 @@ function initStorage(){
   if(localWrittenByOldVersion && lastSyncedAt) setDirty(true);
   document.getElementById("scriptUrlInput").value = scriptUrl;
   document.getElementById("scriptTokenInput").value = scriptToken;
-  if(scriptUrl){
-    refreshFromDrive(true);
-    startAutoRefresh();
-  }
+  renderStorageWarning();
+  requestPersistentStorage();
+  if(scriptUrl) startAutoRefresh();
+  // D'abord la copie de secours locale (rapide), puis Drive.
+  recoverFromMirror().catch(()=>false).then(()=>{
+    takeDailySnapshot();
+    renderSnapshots();
+    if(scriptUrl) refreshFromDrive(true);
+  });
 }
 
 function showSyncBanner(mode, text){
@@ -2014,11 +2146,20 @@ function showSyncBanner(mode, text){
   }
 }
 
-function scriptEndpoint(){
+function scriptEndpoint(params){
   const u = new URL(scriptUrl);
   if(scriptToken) u.searchParams.set("token", scriptToken);
+  Object.keys(params || {}).forEach(k=>u.searchParams.set(k, params[k]));
   return u.toString();
 }
+/* Le script répond `version: 2` s'il a les protections (écriture conditionnelle, copies
+   quotidiennes). Sinon on invite à le mettre à jour. */
+const SCRIPT_VERSION_KEY = "familyBudget_scriptVersion";
+function noteScriptVersion(reply){
+  const v = reply && Number(reply.version) || 1;
+  lsSet(SCRIPT_VERSION_KEY, String(v));
+}
+function scriptIsOutdated(){ return (parseInt(lsGet(SCRIPT_VERSION_KEY) || "0", 10) || 0) === 1; }
 
 function connectDrive(){
   const url = document.getElementById("scriptUrlInput").value.trim();
@@ -2055,6 +2196,9 @@ function startAutoRefresh(){
     const picker = document.getElementById("catMenuPopover");
     if(picker && picker.classList.contains("open")) return;
     if(isModalOpen()) return;
+    // Ni une saisie en cours dans un tableau (nom de catégorie, montant de budget…).
+    const a = document.activeElement;
+    if(a && a.matches && a.matches("table input, table select, textarea")) return;
     refreshFromDrive(false);
   }, 60000);
 }
@@ -2068,10 +2212,14 @@ async function fetchRemote(){
   return remote;
 }
 
+/* Drive « vierge » (script tout neuf). Des données vidées volontairement sur un autre appareil
+   (réinitialisation) laissent des pierres tombales : ce n'est alors PAS un Drive vierge, et la
+   réinitialisation doit être appliquée ici plutôt qu'annulée par un renvoi des données locales. */
 function remoteIsEmpty(remote){
   return !(Array.isArray(remote.transactions) && remote.transactions.length)
       && !(Array.isArray(remote.rules) && remote.rules.length)
-      && !(Array.isArray(remote.budgets) && remote.budgets.length);
+      && !(Array.isArray(remote.budgets) && remote.budgets.length)
+      && !(remote.deleted && typeof remote.deleted === "object" && Object.keys(remote.deleted).length);
 }
 function localHasData(){
   return state.transactions.length > 0 || state.rules.length > 0 || state.budgets.length > 0;
@@ -2084,6 +2232,7 @@ function remoteChangedSince(remote){
 }
 
 function applyRemote(remote){
+  observeClock(remote.updatedAt);
   assignStateFrom(remote);
   resetUndoHistory(); // on n'annule pas au-delà d'une version reçue d'un autre appareil
   state.updatedAt = remote.updatedAt || 0;
@@ -2099,23 +2248,47 @@ function applyRemote(remote){
 function markConnected(){
   storageMode = "google";
   showSyncBanner("google");
-  document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR");
+  document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR") +
+    (scriptIsOutdated() ? " — ⚠️ Votre script Google est une ancienne version : mettez-le à jour pour activer les protections contre la perte de données (tutoriel ci-dessous, « Vous modifiez le script plus tard ? »)." : "");
 }
 
-/* Drive a changé ailleurs ET cet appareil a des modifications non envoyées : au lieu de demander
-   quelle version garder (et donc d'en jeter une), on fusionne les deux enregistrement par
-   enregistrement (voir mergeSyncedStates). Ne fait aucun envoi : l'appelant renvoie le résultat. */
-function mergeRemoteIntoState(remote){
-  const merged = mergeSyncedStates(serializeState(), remote, Date.now());
+/* Adopte un état fusionné (Drive, autre onglet, copie de secours). */
+function adoptMergedState(merged){
+  observeClock(merged.updatedAt);
   assignStateFrom(merged);
   dedupeAfterMerge(state);
-  state.updatedAt = Date.now();
+  state.updatedAt = Math.max(Number(merged.updatedAt) || 0, state.updatedAt || 0);
   resetStampBaseline();
   resetUndoHistory(); // on n'annule pas au-delà d'une fusion avec un autre appareil
   famTitleInput.value = state.famTitle;
+  renderAll();
+}
+
+/* Drive a changé ailleurs : on fusionne TOUJOURS les deux versions enregistrement par
+   enregistrement (voir mergeSyncedStates) au lieu de remplacer l'une par l'autre. Seule une
+   suppression explicite (pierre tombale) retire quelque chose ; ce que Drive aurait perdu (écriture
+   concurrente, ancienne version de l'appli…) est conservé ici puis renvoyé.
+   Ne fait aucun envoi ; renvoie vrai s'il faut renvoyer le résultat vers Drive. */
+function mergeRemoteIntoState(remote){
+  observeClock(remote.updatedAt);
+  const local = serializeState();
+  const merged = mergeSyncedStates(local, remote, Date.now());
+  const kept = new Set((merged.transactions || []).map(t=>t.id));
+  const removed = local.transactions.filter(t=>!kept.has(t.id)).length;
+  // Point de restauration avant d'appliquer beaucoup de suppressions venues d'ailleurs, et au
+  // plus toutes les 6 heures sinon.
+  if(removed >= 20 || Date.now() - lastSyncSnapshotAt > 6 * 3600000){
+    lastSyncSnapshotAt = Date.now();
+    takeSnapshot(removed >= 20 ? `Avant synchronisation : ${removed} opération(s) supprimée(s) sur un autre appareil` : "Avant synchronisation avec Google Drive", local);
+  }
+  adoptMergedState(merged);
+  const needsPush = differsFrom(serializeState(), remote);
+  if(remote.updatedAt != null) setLastSyncedAt(remote.updatedAt);
+  if(needsPush){ state.updatedAt = nextStamp(); setDirty(true); }
+  else{ state.updatedAt = Number(remote.updatedAt) || state.updatedAt; setDirty(false); }
   saveLocal();
   scheduleFolderBackup();
-  renderAll();
+  return needsPush;
 }
 
 /* Après une fusion, deux appareils peuvent avoir créé chacun « la même » catégorie ou le même
@@ -2172,13 +2345,12 @@ async function refreshFromDrive(isInitial){
       return;
     }
     if(remoteChangedSince(remote)){
-      if(localDirty && localHasData()){
-        mergeRemoteIntoState(remote);
-        markConnected();
-        await doPersistWrite({ force:true }); // renvoie la version fusionnée
-        return;
-      }
-      applyRemote(remote);
+      // Appareil neuf, sans aucune donnée à lui : on prend simplement la version Drive.
+      if(!localHasData() && !localDirty && !localLoadProblem){ applyRemote(remote); markConnected(); return; }
+      const needsPush = mergeRemoteIntoState(remote);
+      markConnected();
+      if(needsPush) await doPersistWrite({ force:true }); // renvoie la version fusionnée
+      return;
     }else if(localDirty){
       markConnected();
       await doPersistWrite({ force:true }); // Drive n'a pas bougé : on renvoie ce qui n'était pas parti
@@ -2203,28 +2375,48 @@ function manualRefresh(){
    une sauvegarde (Google si connecté, sinon juste ce navigateur). */
 let persistInFlight = null;
 
+/* Envoi vers Drive. Le script (version 2) n'accepte l'écriture que si Drive est toujours dans la
+   version sur laquelle on s'est basé (`base`) : si un autre appareil a écrit entre notre lecture
+   et notre envoi, il répond « conflict » et on refusionne avant de réessayer — aucune écriture
+   ne peut plus en écraser une autre. Il refuse aussi de vider toutes les opérations sans
+   suppression explicite (`allowEmpty`), et garde une copie quotidienne dans votre Drive. */
 async function writeToDrive(force){
   if(!scriptUrl || storageMode !== "google") return;
   try{
     if(!force){
       const remote = await fetchRemote();
-      if(!remoteIsEmpty(remote) && remoteChangedSince(remote)) mergeRemoteIntoState(remote);
+      if(!remoteIsEmpty(remote) && remoteChangedSince(remote) && !mergeRemoteIntoState(remote)){ markConnected(); return; }
     }
-    const payload = serializeState();
-    const res = await fetch(scriptEndpoint(), {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" }, // évite le preflight CORS
-      body: JSON.stringify(payload)
-    });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    let reply = null;
-    try{ reply = await res.json(); }catch(e){ /* ancien script sans réponse JSON */ }
-    if(reply && reply.error) throw new Error(String(reply.error));
-    setLastSyncedAt(payload.updatedAt);
-    setDirty(false);
-    showSyncBanner("google");
-    document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR");
-  }catch(e){ console.error(e); showSyncBanner("error"); }
+    for(let attempt = 1; ; attempt++){
+      const payload = serializeState();
+      const params = { base: String(lastSyncedAt || 0) };
+      if(!payload.transactions.length && Object.keys(state.deleted || {}).some(k=>k.startsWith("transactions:"))) params.allowEmpty = "1";
+      const res = await fetch(scriptEndpoint(params), {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" }, // évite le preflight CORS
+        body: JSON.stringify(payload)
+      });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      let reply = null;
+      try{ reply = await res.json(); }catch(e){ /* ancien script sans réponse JSON */ }
+      if(reply && reply.error === "conflict"){
+        if(attempt >= 4) throw new Error("Drive modifié au même moment par un autre appareil");
+        const remote = await fetchRemote();
+        if(!mergeRemoteIntoState(remote)){ markConnected(); return; } // l'autre version contenait déjà tout
+        continue;
+      }
+      if(reply && reply.error === "refused_empty") throw new Error("le script a refusé de vider toutes les opérations sur Drive (protection)");
+      if(reply && reply.error) throw new Error(reply.error === "unauthorized" ? "Code secret refusé par le script" : String(reply.error));
+      noteScriptVersion(reply);
+      setLastSyncedAt(payload.updatedAt);
+      if(state.updatedAt === payload.updatedAt) setDirty(false); // sinon : modifié pendant l'envoi
+      markConnected();
+      return;
+    }
+  }catch(e){
+    console.error(e);
+    showSyncBanner("error", "⚠️ Synchronisation Google Drive impossible (" + (e && e.message ? e.message : "erreur") + "). Vos modifications sont gardées sur cet appareil et seront renvoyées automatiquement.");
+  }
 }
 
 /* Les écritures sont enchaînées : jamais deux envois simultanés. */
@@ -2252,7 +2444,6 @@ async function flushPendingPersist(){
 /* Horodatage `mt` des enregistrements modifiés et pierres tombales des supprimés, par
    comparaison avec l'état au dernier enregistrement. Fait ici, en un seul endroit, plutôt que dans
    chacune des dizaines de fonctions qui modifient les données. */
-let stampBaseline = null;
 function recordJson(o){ return JSON.stringify(o, (k, v)=> k === "mt" ? undefined : v); }
 function resetStampBaseline(){
   stampBaseline = {};
@@ -2262,9 +2453,17 @@ function resetStampBaseline(){
     stampBaseline[c] = m;
   });
 }
+/* Horloge des modifications : l'heure de l'appareil, mais jamais antérieure à une version déjà
+   reçue d'un autre appareil — un téléphone en retard d'une heure ne « perd » pas ses modifications. */
+function nextStamp(){
+  const n = Math.max(Date.now(), clockFloor + 1);
+  clockFloor = n;
+  return n;
+}
+function observeClock(v){ const n = Number(v) || 0; if(n > clockFloor) clockFloor = n; }
 function stampModifiedRecords(){
   if(!stampBaseline){ resetStampBaseline(); return; }
-  const now = Date.now();
+  const now = nextStamp();
   MERGED_COLLECTIONS.forEach(c=>{
     const prev = stampBaseline[c] || new Map();
     const next = new Map();
@@ -2281,7 +2480,7 @@ function stampModifiedRecords(){
 function schedulePersist(){
   stampModifiedRecords();
   recordUndoPoint();
-  state.updatedAt = Date.now();
+  state.updatedAt = nextStamp();
   setDirty(true);
   saveLocal();
   scheduleFolderBackup();
@@ -2289,6 +2488,248 @@ function schedulePersist(){
   clearTimeout(persistTimer);
   persistTimer = setTimeout(()=>{ persistTimer = null; doPersistWrite(); }, 1200);
 }
+
+/* ================= Filets de sécurité contre la perte de données =================
+   1. Copie miroir : l'état est aussi écrit dans IndexedDB (stockage distinct du localStorage,
+      bien plus grand). Au démarrage, si le localStorage est vide, illisible ou plus ancien, on
+      repart de cette copie.
+   2. Points de restauration : instantanés complets, pris à l'ouverture (un par jour) et avant
+      chaque opération lourde (import de sauvegarde, réinitialisation, suppression d'un import,
+      fusion qui supprime beaucoup d'opérations…). Restaurables et téléchargeables dans Réglages.
+   3. Stockage « persistant » demandé au navigateur, pour qu'il n'efface pas les données de
+      lui-même quand l'appareil manque de place. */
+const SAFETY_DB = "familyBudget_safety";
+const SNAPSHOT_KEEP_EVENTS = 20;   // derniers points « avant … »
+const SNAPSHOT_KEEP_DAYS = 14;     // un point par jour d'ouverture, sur 14 jours
+let safetyDbPromise = null;
+let lastSyncSnapshotAt = 0;
+
+function safetyDb(){
+  if(typeof indexedDB === "undefined") return Promise.reject(new Error("IndexedDB indisponible"));
+  if(!safetyDbPromise){
+    safetyDbPromise = new Promise((resolve, reject)=>{
+      const req = indexedDB.open(SAFETY_DB, 1);
+      req.onupgradeneeded = ()=>{
+        const db = req.result;
+        if(!db.objectStoreNames.contains("mirror")) db.createObjectStore("mirror");
+        if(!db.objectStoreNames.contains("snapmeta")) db.createObjectStore("snapmeta", { keyPath: "id", autoIncrement: true });
+        if(!db.objectStoreNames.contains("snapdata")) db.createObjectStore("snapdata");
+      };
+      req.onsuccess = ()=> resolve(req.result);
+      req.onerror = ()=> reject(req.error);
+      req.onblocked = ()=> reject(new Error("IndexedDB bloquée"));
+    }).catch(e=>{ safetyDbPromise = null; throw e; });
+  }
+  return safetyDbPromise;
+}
+/* Exécute `fn(stores)` dans une transaction et renvoie la valeur `out.value` qu'elle remplit. */
+function idbTx(storeNames, mode, fn){
+  return safetyDb().then(db=> new Promise((resolve, reject)=>{
+    const tx = db.transaction(storeNames, mode);
+    const stores = {};
+    storeNames.forEach(n=>{ stores[n] = tx.objectStore(n); });
+    const out = {};
+    fn(stores, out);
+    tx.oncomplete = ()=> resolve(out.value);
+    tx.onerror = ()=> reject(tx.error);
+    tx.onabort = ()=> reject(tx.error || new Error("transaction annulée"));
+  }));
+}
+function withTimeout(promise, ms){
+  return Promise.race([promise, new Promise((_, reject)=> setTimeout(()=>reject(new Error("délai dépassé")), ms))]);
+}
+
+/* ---- 1. Copie miroir ---- */
+function scheduleMirror(){
+  clearTimeout(mirrorTimer);
+  mirrorTimer = setTimeout(writeMirror, 800);
+}
+function writeMirror(){
+  clearTimeout(mirrorTimer); mirrorTimer = null;
+  const data = JSON.stringify(serializeState());
+  return idbTx(["mirror"], "readwrite", (st)=>{ st.mirror.put(data, "latest"); })
+    .catch(e=> console.error("Copie miroir impossible", e));
+}
+function flushMirror(){ if(mirrorTimer) writeMirror(); }
+
+/* Au démarrage : si la copie miroir contient ce que le localStorage n'a pas (écriture refusée,
+   données effacées ou illisibles), on la fusionne — sans jamais rien retirer. */
+async function recoverFromMirror(){
+  let raw;
+  try{ raw = await withTimeout(idbTx(["mirror"], "readonly", (st, out)=>{ const r = st.mirror.get("latest"); r.onsuccess = ()=>{ out.value = r.result; }; }), 4000); }
+  catch(e){ console.error(e); return false; }
+  if(unreadableLocalRaw) takeSnapshot("Données locales illisibles (copie brute)", null, unreadableLocalRaw);
+  if(!raw) return false;
+  let mirror;
+  try{ mirror = JSON.parse(raw); }catch(e){ return false; }
+  if(!mirror || typeof mirror !== "object") return false;
+  const merged = mergeSyncedStates(serializeState(), mirror, Date.now());
+  if(!localLoadProblem && !differsFrom(merged, serializeState())) return false;
+  adoptMergedState(merged);
+  setDirty(true); // à renvoyer vers Drive
+  saveLocal();
+  return true;
+}
+
+/* ---- 2. Points de restauration ---- */
+function stateCounts(s){
+  return { tx: (s.transactions || []).length, cats: (s.categories || []).length, rules: (s.rules || []).length, budgets: (s.budgets || []).length };
+}
+/* `payload` : état sérialisé (par défaut l'état actuel, capturé IMMÉDIATEMENT, avant toute
+   modification qui suivrait l'appel) ; `rawText` : texte brut à conserver tel quel. */
+function takeSnapshot(reason, payload, rawText){
+  let data, counts;
+  try{
+    if(rawText != null){ data = String(rawText); counts = null; }
+    else{
+      const p = payload || serializeState();
+      if(!(p.transactions || []).length && !(p.rules || []).length && !(p.budgets || []).length) return Promise.resolve(false);
+      data = JSON.stringify(p); counts = stateCounts(p);
+    }
+  }catch(e){ console.error(e); return Promise.resolve(false); }
+  const meta = { at: Date.now(), day: localDateStr(), reason, counts, size: data.length };
+  return idbTx(["snapmeta","snapdata"], "readwrite", (st)=>{
+    const r = st.snapmeta.add(meta);
+    r.onsuccess = ()=>{ st.snapdata.put(data, r.result); };
+  }).then(pruneSnapshots).then(()=>{ renderSnapshots(); return true; })
+    .catch(e=>{ console.error("Point de restauration impossible", e); return false; });
+}
+function listSnapshots(){
+  return idbTx(["snapmeta"], "readonly", (st, out)=>{ const r = st.snapmeta.getAll(); r.onsuccess = ()=>{ out.value = r.result || []; }; })
+    .then(list=> list.sort((a,b)=> b.at - a.at));
+}
+async function pruneSnapshots(){
+  const list = await listSnapshots();
+  const keep = new Set();
+  let events = 0;
+  const days = new Set();
+  list.forEach(m=>{
+    if(m.daily){
+      if(!days.has(m.day) && days.size < SNAPSHOT_KEEP_DAYS){ days.add(m.day); keep.add(m.id); }
+    }else if(events < SNAPSHOT_KEEP_EVENTS){ events++; keep.add(m.id); }
+  });
+  const drop = list.filter(m=>!keep.has(m.id)).map(m=>m.id);
+  if(!drop.length) return;
+  await idbTx(["snapmeta","snapdata"], "readwrite", (st)=>{ drop.forEach(id=>{ st.snapmeta.delete(id); st.snapdata.delete(id); }); });
+}
+async function takeDailySnapshot(){
+  try{
+    const list = await listSnapshots();
+    const today = localDateStr();
+    if(list.some(m=>m.daily && m.day === today)) return;
+    const p = serializeState();
+    if(!(p.transactions || []).length) return;
+    const data = JSON.stringify(p);
+    await idbTx(["snapmeta","snapdata"], "readwrite", (st)=>{
+      const r = st.snapmeta.add({ at: Date.now(), day: today, daily: true, reason: "Ouverture du jour", counts: stateCounts(p), size: data.length });
+      r.onsuccess = ()=>{ st.snapdata.put(data, r.result); };
+    });
+    await pruneSnapshots();
+    renderSnapshots();
+  }catch(e){ console.error(e); }
+}
+function readSnapshotData(id){
+  return idbTx(["snapdata"], "readonly", (st, out)=>{ const r = st.snapdata.get(id); r.onsuccess = ()=>{ out.value = r.result; }; });
+}
+function fmtSize(n){ return n > 1048576 ? (n/1048576).toFixed(1).replace(".", ",") + " Mo" : Math.max(1, Math.round(n/1024)) + " Ko"; }
+async function renderSnapshots(){
+  const tbody = document.getElementById("snapshotTable");
+  if(!tbody) return;
+  let list;
+  try{ list = await listSnapshots(); }
+  catch(e){
+    tbody.innerHTML = `<tr><td colspan="4" class="hint">Points de restauration indisponibles dans ce navigateur (${escapeHtml(e && e.message ? e.message : "IndexedDB")}). Exportez des sauvegardes manuelles.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = list.length ? list.map(m=>`<tr>
+      <td>${escapeHtml(new Date(m.at).toLocaleString("fr-FR", { dateStyle:"short", timeStyle:"short" }))}</td>
+      <td>${escapeHtml(m.reason)}</td>
+      <td class="num">${m.counts ? escapeHtml(m.counts.tx) + " op." : "—"} <span class="hint" style="margin:0;">${fmtSize(m.size || 0)}</span></td>
+      <td style="white-space:nowrap;">
+        ${m.counts ? `<button class="btn secondary small" onclick="restoreSnapshot(${Number(m.id)})">Restaurer</button>` : ""}
+        <button class="btn secondary small" onclick="downloadSnapshot(${Number(m.id)})" title="Télécharger ce point de restauration" aria-label="Télécharger le point du ${escapeHtml(new Date(m.at).toLocaleString("fr-FR"))}">⭳</button>
+      </td></tr>`).join("")
+    : `<tr><td colspan="4" class="hint">Aucun point pour l'instant : le premier est créé dès que vous avez des opérations.</td></tr>`;
+}
+async function downloadSnapshot(id){
+  try{
+    const data = await readSnapshotData(id);
+    if(!data){ appAlert("Ce point de restauration est introuvable."); return; }
+    saveFile("comptes-point-de-restauration-" + id + ".json", data, "application/json");
+  }catch(e){ appAlert("Lecture impossible : " + (e && e.message ? e.message : "erreur")); }
+}
+async function restoreSnapshot(id){
+  let data;
+  try{ data = await readSnapshotData(id); }catch(e){ appAlert("Lecture impossible : " + (e && e.message ? e.message : "erreur")); return; }
+  let snap;
+  try{ snap = JSON.parse(data); }catch(e){ appAlert("Ce point de restauration est illisible ; vous pouvez le télécharger pour l'examiner."); return; }
+  const c = stateCounts(snap);
+  appConfirm(`Revenir à cet état (${c.tx} opération(s), ${c.cats} catégorie(s), ${c.rules} règle(s), ${c.budgets} budget(s)) ? L'état actuel (${state.transactions.length} opération(s)) est d'abord enregistré comme point de restauration, et ↶ Annuler reste possible. Si vous êtes connecté à Google Drive, vos autres appareils reviendront aussi à cet état.`, ()=>{
+    takeSnapshot("Avant restauration d'un point");
+    closeCategoryPicker();
+    // Remplacement complet (et non fusion) : c'est ce qu'on attend d'une restauration. Les
+    // enregistrements ajoutés depuis seront supprimés, ceux qui reviennent sont ré-horodatés.
+    MERGED_COLLECTIONS.forEach(k=>{ if(!Array.isArray(snap[k])) snap[k] = []; });
+    snap.deleted = state.deleted;
+    assignStateFrom(snap);
+    schedulePersist();
+    famTitleInput.value = state.famTitle;
+    renderAll();
+    appAlert("État restauré.");
+  }, { title:"Restaurer un point de restauration", confirmLabel:"Restaurer" });
+}
+function createManualSnapshot(){
+  takeSnapshot("Point créé à la main").then(ok=> appAlert(ok ? "Point de restauration créé." : "Rien à enregistrer pour l'instant (aucune opération), ou stockage indisponible."));
+}
+
+/* ---- 3. Alertes et stockage persistant ---- */
+function renderStorageWarning(){
+  const el = document.getElementById("storageWarning");
+  if(!el) return;
+  const msgs = [];
+  if(localSaveFailed) msgs.push("⚠️ Ce navigateur a refusé d'enregistrer vos dernières modifications (stockage plein ou bloqué). Elles restent affichées et une copie de secours est tentée, mais exportez une sauvegarde dès maintenant (Réglages → Sauvegarde manuelle)" + (scriptUrl ? " ; la synchronisation Google Drive continue." : "."));
+  if(localLoadProblem) msgs.push("⚠️ " + localLoadProblem + " Elles n'ont pas été effacées : une copie est gardée dans Réglages → Points de restauration, et l'appli a tenté de repartir de la copie de secours ou de Google Drive.");
+  el.hidden = !msgs.length;
+  el.textContent = msgs.join(" ");
+}
+async function requestPersistentStorage(){
+  try{
+    if(navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist();
+  }catch(e){ /* non pris en charge : sans conséquence */ }
+}
+
+/* ---- Plusieurs onglets ouverts sur le même appareil ----
+   Chaque onglet a sa copie des données en mémoire : sans précaution, le dernier qui enregistre
+   écrase ce que l'autre venait de faire. Quand un autre onglet enregistre, on fusionne. */
+window.addEventListener("storage", (e)=>{
+  if(e.key !== STORAGE_KEY || !e.newValue) return;
+  let other;
+  try{ other = JSON.parse(e.newValue); }catch(err){ return; }
+  if(!other || typeof other !== "object") return;
+  const mine = serializeState();
+  const merged = mergeSyncedStates(mine, other, Date.now());
+  if(!differsFrom(merged, mine)) return; // rien de neuf
+  closeCategoryPicker();
+  adoptMergedState(merged);
+  localDirty = lsGet(DIRTY_KEY) === "1";
+  lastSyncedAt = parseInt(lsGet(LAST_SYNC_KEY) || "0", 10) || 0;
+  // N'enregistre que si cet onglet apporte quelque chose que l'autre n'avait pas (sinon les
+  // deux onglets se renverraient la balle indéfiniment).
+  if(differsFrom(serializeState(), other)){ setDirty(true); saveLocal(); }
+});
+
+/* Page masquée (changement d'appli sur téléphone, fermeture d'onglet) : on n'attend pas les
+   délais habituels pour envoyer les modifications en attente. Page réaffichée : on récupère
+   tout de suite ce qu'un autre appareil a pu faire entre-temps. */
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "hidden"){
+    flushMirror();
+    if(persistTimer) flushPendingPersist();
+  }else if(scriptUrl && !isModalOpen()){
+    refreshFromDrive(false);
+  }
+});
+window.addEventListener("pagehide", ()=>{ flushMirror(); if(persistTimer) flushPendingPersist(); });
 
 /* ---------------- Annuler (Ctrl+Z) ----------------
    Chaque enregistrement mémorise l'état précédent (15 derniers). Filet de sécurité contre une
@@ -2578,6 +3019,7 @@ function removeCategory(id){
   appConfirm(
     `Supprimer la catégorie « ${categoryLabel(cat)} » ?\n${txCount} opération(s) redeviendront « à trier », ${ruleCount} règle(s) et ${budgetCount} budget(s) liés seront supprimés.`,
     ()=>{
+      if(txCount + ruleCount + budgetCount >= 10) takeSnapshot(`Avant suppression de la catégorie « ${categoryLabel(cat)} »`);
       state.categories = state.categories.filter(c=>c.id!==id);
       state.rules = state.rules.filter(r=>r.categoryId!==id);
       state.budgets = state.budgets.filter(b=>!(b.scope.type==="category" && b.scope.value===id));
@@ -2702,6 +3144,7 @@ function removeAccount(id){
   appConfirm(
     `Supprimer le compte « ${acc.name} » ? ${count} opération(s) associée(s) seront supprimées définitivement.`,
     ()=>{
+      if(count) takeSnapshot(`Avant suppression du compte « ${acc.name} »`);
       const toDelete = state.transactions.filter(t=>t.accountId===id).map(t=>t.id);
       state.transactions = state.transactions.filter(t=>t.accountId!==id);
       state.accounts = state.accounts.filter(a=>a.id!==id);
@@ -4340,6 +4783,7 @@ function bulkAssignCategory(){
 
 function bulkDeleteSelection(){
   appConfirm(selectedIds.size + " opération(s) vont être supprimées définitivement. Continuer ?", ()=>{
+    if(selectedIds.size >= 5) takeSnapshot(`Avant suppression de ${selectedIds.size} opérations`);
     state.transactions = state.transactions.filter(t=>!selectedIds.has(t.id));
     selectedIds.clear();
     schedulePersist();
@@ -4537,7 +4981,7 @@ function deleteTxComment(txId, commentId){
   t.comments = t.comments.filter(c=>c.id !== commentId);
   if(!t.comments.length) delete t.comments;
   // Pierre tombale : la fusion avec un autre appareil ne doit pas le faire revenir.
-  state.deleted["comment:" + commentId] = Date.now();
+  state.deleted["comment:" + commentId] = nextStamp();
   schedulePersist();
   renderTransactions();
   openTxComments(txId);
@@ -5607,6 +6051,7 @@ function resetTransactionsData(){
     `Ceci supprime DÉFINITIVEMENT les ${state.transactions.length} opération(s) et l'historique d'import de ce navigateur${cloudNote}. Les catégories et règles ne sont PAS touchées.`,
     "RESET",
     ()=>{
+      takeSnapshot("Avant réinitialisation des opérations");
       closeCategoryPicker();
       selectedIds.clear();
       parsedRows = null; parsedHeaders = null; currentImportFileName = ""; duplicateMatches = []; reconcileMatches = [];
@@ -5634,6 +6079,7 @@ function resetCategoriesData(){
     `Ceci réinitialise les catégories (retour aux catégories par défaut) et supprime toutes les règles${cloudNote}. Les opérations déjà catégorisées perdront leur catégorie (mais restent dans le journal). Les opérations elles-mêmes ne sont PAS touchées.`,
     "RESET",
     ()=>{
+      takeSnapshot("Avant réinitialisation des catégories");
       closeCategoryPicker();
       state.categories = defaultCategories();
       state.rules = [];
@@ -5662,6 +6108,7 @@ function importBackup(file){
     try{
       const parsed = JSON.parse(e.target.result);
       if(!parsed || typeof parsed !== "object") throw new Error("format invalide");
+      takeSnapshot("Avant import d'une sauvegarde");
       const arr = (v, fallback)=> Array.isArray(v) ? v : fallback;
       if(typeof parsed.famTitle === "string" && parsed.famTitle.trim()) state.famTitle = parsed.famTitle;
       // Catégories : réunies (par identifiant) et non remplacées — sinon les opérations déjà
@@ -5763,6 +6210,7 @@ function removeImportBatch(batchId){
       (batch.linked ? ` Les ${batch.linked} opération(s) saisie(s) à la main qui avaient été rapprochées de ce relevé sont conservées (le lien est retiré).` : "") +
       " Cette action est irréversible (sauf avec ↶ Annuler juste après).",
     ()=>{
+      takeSnapshot(`Avant suppression de l'import « ${batch.fileName || "sans nom"} »`);
       state.transactions.forEach(t=>{ if(t.bank && t.bank.batchId === batchId) delete t.bank; });
       const toDelete = state.transactions.filter(t=>t.batchId===batchId).map(t=>t.id);
       state.transactions = state.transactions.filter(t=>t.batchId!==batchId);
