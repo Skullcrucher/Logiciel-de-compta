@@ -143,5 +143,80 @@ test("un CSV n'est ni OFX ni QIF", ()=>{
   assert.ok(!ctx.looksLikeOfx(csv) && !ctx.looksLikeQif(csv));
 });
 
+console.log("Fusion de versions (synchronisation)");
+const J = (o)=>JSON.parse(JSON.stringify(o)); // objets créés dans le contexte vm → comparables
+test("une catégorisation faite sur chaque appareil est conservée des deux côtés", ()=>{
+  const local = { updatedAt: 200, transactions: [
+    { id:"a", label:"A", amount:-1, categoryId:"c1", mt:150 },
+    { id:"b", label:"B", amount:-2, categoryId:"", mt:10 } ], categories:[{ id:"c1", name:"X" }] };
+  const remote = { updatedAt: 300, transactions: [
+    { id:"a", label:"A", amount:-1, categoryId:"", mt:10 },
+    { id:"b", label:"B", amount:-2, categoryId:"c2", mt:250 } ], categories:[{ id:"c2", name:"Y" }] };
+  const m = J(ctx.mergeSyncedStates(local, remote, 1000));
+  const byId = Object.fromEntries(m.transactions.map(t=>[t.id, t]));
+  assert.strictEqual(byId.a.categoryId, "c1");
+  assert.strictEqual(byId.b.categoryId, "c2");
+  assert.deepStrictEqual(m.categories.map(c=>c.id).sort(), ["c1","c2"]);
+});
+test("données sans horodatage : une catégorie présente d'un seul côté n'est pas perdue", ()=>{
+  const local = { updatedAt: 100, transactions: [{ id:"a", label:"A", amount:-1, categoryId:"c1", source:"manual" }] };
+  const remote = { updatedAt: 500, transactions: [{ id:"a", label:"A", amount:-1, categoryId:"" }] };
+  const m = J(ctx.mergeSyncedStates(local, remote, 1000));
+  assert.strictEqual(m.transactions[0].categoryId, "c1");
+});
+test("une suppression (pierre tombale) l'emporte sur une version plus ancienne", ()=>{
+  const local = { updatedAt: 100, transactions: [{ id:"a", label:"A", amount:-1, mt:50 }, { id:"n", label:"N", amount:-3, mt:90 }] };
+  const remote = { updatedAt: 300, transactions: [], deleted: { "transactions:a": 200 } };
+  const m = J(ctx.mergeSyncedStates(local, remote, 1000));
+  assert.deepStrictEqual(m.transactions.map(t=>t.id), ["n"]); // « n » n'existe que localement : gardée
+  assert.strictEqual(m.deleted["transactions:a"], 200);
+});
+test("une modification postérieure à la suppression fait revenir l'enregistrement", ()=>{
+  const local = { updatedAt: 400, transactions: [{ id:"a", label:"A", amount:-1, mt:350 }] };
+  const remote = { updatedAt: 300, transactions: [], deleted: { "transactions:a": 200 } };
+  assert.strictEqual(ctx.mergeSyncedStates(local, remote, 1000).transactions.length, 1);
+});
+test("les commentaires des deux appareils sont réunis, sauf ceux supprimés", ()=>{
+  const local = { updatedAt: 100, transactions: [{ id:"a", label:"A", amount:-1, mt:100, comments:[{ id:"k1", text:"un", at:1 }, { id:"k3", text:"trois", at:3 }] }] };
+  const remote = { updatedAt: 200, transactions: [{ id:"a", label:"A", amount:-1, mt:200, comments:[{ id:"k2", text:"deux", at:2 }] }], deleted: { "comment:k3": 150 } };
+  const m = J(ctx.mergeSyncedStates(local, remote, 1000));
+  assert.deepStrictEqual(m.transactions[0].comments.map(c=>c.id), ["k1","k2"]);
+});
+test("une catégorie « récupérée » cède la place à la vraie", ()=>{
+  const local = { updatedAt: 500, categories: [{ id:"c1", name:"Catégorie récupérée 1", recovered:true, mt:400 }] };
+  const remote = { updatedAt: 100, categories: [{ id:"c1", name:"Courses", mt:50 }] };
+  assert.strictEqual(ctx.mergeSyncedStates(local, remote, 1000).categories[0].name, "Courses");
+});
+test("les pierres tombales trop anciennes sont oubliées", ()=>{
+  const now = 1000 * 86400000;
+  const m = ctx.mergeSyncedStates({ updatedAt:1, deleted:{ "rules:x": 1 } }, { updatedAt:2, deleted:{ "rules:y": now - 1 } }, now);
+  assert.deepStrictEqual(Object.keys(m.deleted), ["rules:y"]);
+});
+
+console.log("Moyens de paiement et rapprochement");
+test("détection du moyen de paiement d'après le libellé", ()=>{
+  const methods = [
+    { id:"card", keywords:"CB, CARTE" }, { id:"debit", keywords:"PRLV, PRÉLÈVEMENT" }, { id:"chq", keywords:"CHQ, CHEQUE" } ];
+  assert.strictEqual(ctx.detectPaymentMethod("CB CARREFOUR 12/03", methods), "card");
+  assert.strictEqual(ctx.detectPaymentMethod("PRLV SEPA EDF", methods), "debit");
+  assert.strictEqual(ctx.detectPaymentMethod("Prélèvement mutuelle", methods), "debit");
+  assert.strictEqual(ctx.detectPaymentMethod("CHQ 1234567", methods), "chq");
+  assert.strictEqual(ctx.detectPaymentMethod("CBD SHOP", methods), ""); // mot entier seulement
+});
+test("rapprochement : même montant, la saisie la plus proche en date, une seule fois", ()=>{
+  const manual = [ { id:"m1", amount:-50, date:"2026-03-01" }, { id:"m2", amount:-50, date:"2026-03-10" }, { id:"m3", amount:-20, date:"2026-03-05" } ];
+  const entries = [ { amount:-50, date:"2026-03-11" }, { amount:-50, date:"2026-03-12" }, { amount:-20, date:"2026-06-30" }, null ];
+  const r = ctx.matchManualEntries(entries, manual, 60).map(m=>m && m.id);
+  assert.deepStrictEqual(r, ["m2", "m1", null, null]);
+});
+
+console.log("Tutoriel Google Drive");
+test("le code du script affiché dans l'appli est celui de google-apps-script.gs", ()=>{
+  const embedded = html.match(/<script type="text\/plain" id="appsScriptSource">([\s\S]*?)<\/script>/);
+  assert.ok(embedded, "bloc appsScriptSource introuvable");
+  const file = fs.readFileSync(path.join(__dirname, "..", "google-apps-script.gs"), "utf8");
+  assert.strictEqual(embedded[1].trim(), file.trim());
+});
+
 console.log(`\n${passed} réussi(s), ${failed} échoué(s)`);
 process.exit(failed ? 1 : 0);
