@@ -268,6 +268,28 @@
   label.chk input{ margin:0; }
   .more-row{ text-align:center; padding:12px 0 4px; }
   .tx-note{ display:block; font-size:12px; color:var(--muted); font-style:italic; }
+  .tx-meta{ display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; }
+  .tx-meta .tag{ font-size:11px; padding:1px 7px; font-weight:500; }
+  .tag.pay{ background:color-mix(in srgb, var(--gold) 16%, transparent); color:var(--ink); }
+  .tag.bank{ background:color-mix(in srgb, var(--blue) 12%, transparent); color:var(--tag-blue, var(--blue)); max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  button.icon-btn .cnt{ font-size:11px; font-weight:700; margin-left:1px; color:var(--ink); }
+  button.icon-btn.link-suggest{ color:var(--blue); }
+  .comment-list{ list-style:none; margin:0 0 12px; padding:0; max-height:300px; overflow:auto; }
+  .comment-list li{ border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:8px; background:var(--surface-2); }
+  .comment-list .meta{ display:flex; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted); margin-bottom:4px; }
+  .comment-list .text{ white-space:pre-wrap; word-break:break-word; }
+  .modal-field textarea{ width:100%; min-height:80px; resize:vertical; font:inherit; }
+  details.chart-options{ margin:-4px 0 10px; }
+  details.chart-options > summary{ cursor:pointer; font-size:13px; color:var(--muted); width:max-content; }
+  details.chart-options .opts{ display:flex; flex-wrap:wrap; gap:8px 18px; align-items:end; padding:10px 0 2px; }
+  details.chart-options .opts .field{ min-width:150px; }
+  details.tuto{ margin:10px 0 4px; border:1px solid var(--border); border-radius:12px; padding:8px 12px; background:var(--surface-2); }
+  details.tuto > summary{ cursor:pointer; font-weight:600; }
+  details.tuto ol{ padding-left:20px; margin:10px 0; }
+  details.tuto li{ margin-bottom:8px; line-height:1.5; }
+  details.tuto pre{ max-height:260px; overflow:auto; font-size:12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px; white-space:pre; }
+  details.tuto code{ font-size:12.5px; }
+  .chart-click-hint{ font-size:12px; color:var(--muted); margin:6px 0 0; }
   tr.tx-checked td{ opacity:.72; }
   .stat-row{ display:flex; gap:28px; flex-wrap:wrap; margin-bottom:12px; }
   .stat-row .v{ font-family:var(--font-display); font-weight:800; font-size:19px; }
@@ -468,7 +490,7 @@
           <div class="field">
             <label>Recherche</label>
             <div style="position:relative;">
-              <input type="text" id="filterSearch" placeholder="Libellé, note ou montant…" oninput="renderTransactions()" style="padding-right:28px;">
+              <input type="text" id="filterSearch" placeholder="Libellé, note, commentaire ou montant…" oninput="renderTransactions()" style="padding-right:28px;">
               <button type="button" onclick="clearSearchFilter()" title="Effacer la recherche"
                       style="position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; padding:2px 6px; line-height:1;">✕</button>
             </div>
@@ -477,6 +499,14 @@
           <div class="field"><label>Mois</label><select id="filterMonth" onchange="renderTransactions()"></select></div>
           <div class="field"><label>Du</label><input type="date" id="filterFrom" onchange="renderTransactions()"></div>
           <div class="field"><label>Au</label><input type="date" id="filterTo" onchange="renderTransactions()"></div>
+          <div class="field"><label>Sens</label>
+            <select id="filterSign" onchange="renderTransactions()">
+              <option value="">Entrées et sorties</option>
+              <option value="in">Revenus (hors virements internes)</option>
+              <option value="out">Dépenses (hors virements internes)</option>
+            </select>
+          </div>
+          <div class="field"><label>Moyen de paiement</label><select id="filterPayment" onchange="renderTransactions()"></select></div>
           <div class="field"><label>Pointage</label>
             <select id="filterChecked" onchange="renderTransactions()">
               <option value="">Toutes</option>
@@ -508,6 +538,8 @@
           <strong id="bulkCount" style="font-size:13px;"></strong>
           <input type="text" id="bulkCategorySelect" list="categoryDatalist" placeholder="Tapez pour rechercher…" style="max-width:220px;">
           <button class="btn small" onclick="bulkAssignCategory()">Assigner la catégorie</button>
+          <select id="bulkPaymentSelect" aria-label="Moyen de paiement à assigner" style="max-width:180px;"></select>
+          <button class="btn secondary small" onclick="bulkAssignPayment()">Assigner le moyen de paiement</button>
           <button class="btn secondary small" onclick="bulkSetChecked(true)">✓ Pointer</button>
           <button class="btn secondary small" onclick="bulkSetChecked(false)">Dépointer</button>
           <button class="btn secondary small" onclick="bulkDeleteSelection()">Supprimer la sélection</button>
@@ -831,12 +863,63 @@
         </div>
       </div>
       <p class="sub" id="chartFreqSub">Revenus, dépenses et solde, mois par mois.</p>
-      <div style="position:relative; height:280px; width:100%;"><canvas id="chartMonthly"></canvas></div>
+      <details class="chart-options">
+        <summary>⚙️ Personnaliser ce graphique</summary>
+        <div class="opts">
+          <div class="field"><label for="cc_evolType">Affichage</label>
+            <select id="cc_evolType" onchange="updateChartConfig()">
+              <option value="line">Courbes</option>
+              <option value="bar">Barres</option>
+            </select>
+          </div>
+          <fieldset class="field" style="border:none; padding:0; margin:0;">
+            <legend style="font-size:13px; margin-bottom:4px;">Séries affichées</legend>
+            <div style="display:flex; flex-wrap:wrap; gap:4px 14px;">
+              <label class="chk" style="display:inline-flex;"><input type="checkbox" id="cc_showIn" onchange="updateChartConfig()" style="width:auto;"> Revenus</label>
+              <label class="chk" style="display:inline-flex;"><input type="checkbox" id="cc_showOut" onchange="updateChartConfig()" style="width:auto;"> Dépenses</label>
+              <label class="chk" style="display:inline-flex;"><input type="checkbox" id="cc_showNet" onchange="updateChartConfig()" style="width:auto;"> Épargne de la période</label>
+              <label class="chk" style="display:inline-flex;"><input type="checkbox" id="cc_showBalance" onchange="updateChartConfig()" style="width:auto;"> Solde cumulé</label>
+            </div>
+          </fieldset>
+        </div>
+      </details>
+      <div style="position:relative; height:280px; width:100%;"><canvas id="chartMonthly" role="img" aria-label="Graphique d'évolution des revenus et dépenses. Le détail est disponible dans le tableau « Détail mensuel »."></canvas></div>
+      <p class="chart-click-hint">👆 Cliquez sur un point ou une barre pour voir les opérations concernées.</p>
     </div>
     <div class="card" id="dashCard_categoryChart">
-      <h2>Habitudes de dépense par catégorie</h2>
+      <h2 id="chartCatTitle">Habitudes de dépense par catégorie</h2>
       <p class="sub" id="chartCatSub">Évolution mensuelle des principaux postes de dépense.</p>
-      <div style="position:relative; height:280px; width:100%;"><canvas id="chartByCategory"></canvas></div>
+      <details class="chart-options">
+        <summary>⚙️ Personnaliser ce graphique</summary>
+        <div class="opts">
+          <div class="field"><label for="cc_catType">Affichage</label>
+            <select id="cc_catType" onchange="updateChartConfig()">
+              <option value="line">Courbes</option>
+              <option value="bar">Barres empilées</option>
+              <option value="doughnut">Anneau (total de la période)</option>
+            </select>
+          </div>
+          <div class="field"><label for="cc_catFlow">Montrer</label>
+            <select id="cc_catFlow" onchange="updateChartConfig()">
+              <option value="out">Les dépenses</option>
+              <option value="in">Les revenus</option>
+            </select>
+          </div>
+          <div class="field"><label for="cc_catLevel">Détail</label>
+            <select id="cc_catLevel" onchange="updateChartConfig()">
+              <option value="group">Catégories principales</option>
+              <option value="sub">Sous-catégories</option>
+            </select>
+          </div>
+          <div class="field"><label for="cc_catTopN">Nombre de postes</label>
+            <select id="cc_catTopN" onchange="updateChartConfig()">
+              <option value="3">3</option><option value="5">5</option><option value="6">6</option><option value="8">8</option><option value="10">10</option>
+            </select>
+          </div>
+        </div>
+      </details>
+      <div style="position:relative; height:280px; width:100%;"><canvas id="chartByCategory" role="img" aria-label="Graphique des dépenses par catégorie. Le détail est disponible dans la carte « Répartition par catégorie »."></canvas></div>
+      <p class="chart-click-hint">👆 Cliquez sur un point, une barre ou une part pour voir les opérations concernées.</p>
     </div>
     <div class="card" id="dashCard_budgetStatus">
       <div class="toolbar">
@@ -925,6 +1008,16 @@
             </table>
           </div>
         </div>
+        <div id="reconcileImportBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
+          <h2 style="font-size:15px; margin-bottom:6px;">🔗 Opérations déjà saisies retrouvées dans ce relevé</h2>
+          <p class="sub" id="reconcileImportIntro" style="margin-bottom:10px;"></p>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Relevé bancaire</th><th class="num">Montant</th><th>Votre saisie</th><th>Décision</th></tr></thead>
+              <tbody id="reconcileImportTable"></tbody>
+            </table>
+          </div>
+        </div>
         <button class="btn secondary" onclick="checkMissingFromFile()" style="margin-top:4px;">🔍 Vérifier les opérations absentes de ce relevé</button>
         <div id="missingBox" class="card" style="display:none; margin:14px 0; padding:14px 16px; background:var(--surface-2);">
           <h2 style="font-size:15px; margin-bottom:6px;">⚠️ Opérations enregistrées mais absentes de ce relevé</h2>
@@ -981,7 +1074,108 @@
           <input type="password" id="scriptTokenInput" placeholder="Voir README / google-apps-script.gs" autocomplete="off">
         </div>
       </div>
-      <p class="hint" id="driveStatus" style="margin-top:2px;">Pas encore connecté. Voir les instructions de configuration fournies séparément.</p>
+      <p class="hint" id="driveStatus" style="margin-top:2px;">Pas encore connecté. Suivez le tutoriel ci-dessous (10 minutes, une seule fois).</p>
+      <details class="tuto" id="driveTutorial" ontoggle="if(this.open) fillAppsScriptCode()">
+        <summary>📘 Tutoriel : créer votre lien Google Drive (/exec) et votre code secret</summary>
+        <p class="hint" style="margin-top:8px;">Le principe : un petit programme (« script ») placé dans VOTRE compte Google enregistre la sauvegarde dans un fichier <code>comptes-famille.json</code> de votre Drive. Personne d'autre n'y a accès sans le lien ET le code secret.</p>
+        <ol>
+          <li>Sur un ordinateur, connecté à votre compte Google, ouvrez <a href="https://script.google.com/home" target="_blank" rel="noopener">script.google.com</a> puis cliquez sur <strong>« Nouveau projet »</strong>.</li>
+          <li>Effacez tout le contenu affiché (<code>function myFunction() {…}</code>), puis collez à la place le code ci-dessous :
+            <div style="margin:6px 0;"><button type="button" class="btn secondary small" onclick="copyAppsScriptCode(this)">📋 Copier le code du script</button></div>
+            <pre id="appsScriptCode" tabindex="0" aria-label="Code du script Google"></pre>
+            Donnez un nom au projet (en haut à gauche, ex. « Comptes famille ») et cliquez sur 💾 <strong>Enregistrer</strong>.</li>
+          <li>Choisissez un <strong>code secret</strong> : une longue phrase que vous seul connaissez (ex. <code>violon-tomate-47-nuage-bleu</code>). Dans le menu de gauche, cliquez sur ⚙️ <strong>Paramètres du projet</strong>, descendez jusqu'à <strong>« Propriétés du script »</strong> → <strong>« Ajouter une propriété »</strong> : Propriété = <code>TOKEN</code>, Valeur = votre code secret → <strong>Enregistrer</strong>.</li>
+          <li>En haut à droite : <strong>Déployer</strong> → <strong>Nouveau déploiement</strong>. Cliquez sur la roue ⚙️ à côté de « Sélectionner le type » → <strong>Application Web</strong>. Réglez <strong>Exécuter en tant que : Moi</strong> et <strong>Qui a accès : Tout le monde</strong>, puis <strong>Déployer</strong>.</li>
+          <li>Google demande d'<strong>autoriser l'accès</strong> : choisissez votre compte. S'il affiche « Google n'a pas validé cette application », cliquez sur <strong>Paramètres avancés</strong> → <strong>Accéder à … (non sécurisé)</strong> → <strong>Autoriser</strong>. C'est normal : c'est votre propre script, il n'accède qu'à votre Drive.</li>
+          <li>Copiez l'<strong>URL de l'application Web</strong> affichée : elle commence par <code>https://script.google.com/macros/s/</code> et <strong>se termine par <code>/exec</code></strong>. Collez-la dans le champ « Lien de votre script » ci-dessus, tapez votre code secret dans le champ d'à côté, puis cliquez sur <strong>Connecter</strong>.</li>
+          <li>Sur vos autres appareils (téléphone, tablette…), ouvrez l'application et collez le <strong>même lien</strong> et le <strong>même code secret</strong> : tout le monde partage alors les mêmes comptes.</li>
+        </ol>
+        <p class="hint"><strong>Vous modifiez le script plus tard ?</strong> Déployer → <strong>Gérer les déploiements</strong> → ✎ → Version : <strong>« Nouvelle version »</strong> → Déployer. Le lien /exec reste le même. (Un « Nouveau déploiement » créerait un nouveau lien.)</p>
+        <p class="hint"><strong>« Code secret refusé » ?</strong> Le code tapé ici doit être exactement la valeur de la propriété TOKEN (attention aux espaces et majuscules).</p>
+      </details>
+      <script type="text/plain" id="appsScriptSource">/**
+ * Script Google Apps Script de sauvegarde pour « Comptes de la famille ».
+ *
+ * Installation (une seule fois) :
+ *  1. https://script.google.com → Nouveau projet → collez ce fichier à la place du contenu.
+ *  2. Paramètres du projet (roue dentée) → Propriétés du script → Ajouter :
+ *       TOKEN = une longue phrase secrète (ex. générée par un gestionnaire de mots de passe)
+ *  3. Déployer → Nouveau déploiement → type « Application Web »
+ *       Exécuter en tant que : Moi · Qui a accès : Tout le monde
+ *  4. Copiez l'URL qui se termine par /exec dans l'application, avec le même code secret.
+ *
+ * Sans propriété TOKEN, le script accepte toutes les requêtes (ancien comportement) :
+ * toute personne connaissant l'URL pourrait alors lire vos opérations.
+ */
+const FILE_NAME = "comptes-famille.json";
+
+function isAuthorized_(e) {
+  const expected = PropertiesService.getScriptProperties().getProperty("TOKEN");
+  if (!expected) return true;
+  return !!(e && e.parameter && e.parameter.token === expected);
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getFile_() {
+  const files = DriveApp.getFilesByName(FILE_NAME);
+  return files.hasNext() ? files.next() : null;
+}
+
+function doGet(e) {
+  if (!isAuthorized_(e)) return json_({ error: "unauthorized" });
+  const file = getFile_();
+  if (!file) return json_({});
+  return ContentService.createTextOutput(file.getBlob().getDataAsString())
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  if (!isAuthorized_(e)) return json_({ error: "unauthorized" });
+  const body = e.postData && e.postData.contents;
+  try {
+    const data = JSON.parse(body);
+    if (!data || typeof data !== "object") throw new Error("format");
+  } catch (err) {
+    return json_({ error: "invalid_json" });
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const file = getFile_();
+    if (file) file.setContent(body);
+    else DriveApp.createFile(FILE_NAME, body, MimeType.PLAIN_TEXT);
+  } finally {
+    lock.releaseLock();
+  }
+  return json_({ ok: true });
+}
+</script>
+    </div>
+
+    <div class="card" id="folderBackupCard">
+      <h2 style="font-size:15px;">📁 Sauvegarde automatique dans un dossier (OneDrive, Dropbox, iCloud…)</h2>
+      <p class="sub">Choisissez un fichier dans un dossier synchronisé sur cet ordinateur — par exemple votre dossier <strong>OneDrive</strong>. L'application y réécrit la sauvegarde à chaque modification, et OneDrive l'envoie dans le cloud. Fonctionne sur ordinateur avec Chrome ou Edge.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn small" id="folderPickBtn" onclick="pickFolderBackupFile()">Choisir le fichier de sauvegarde…</button>
+        <button class="btn secondary small" id="folderResumeBtn" onclick="resumeFolderBackup()" style="display:none;">▶ Réactiver</button>
+        <button class="btn secondary small" id="folderRestoreBtn" onclick="restoreFromFolderBackup()" style="display:none;">⭱ Restaurer depuis ce fichier</button>
+        <button class="btn secondary small" id="folderStopBtn" onclick="stopFolderBackup()" style="display:none;">Arrêter</button>
+      </div>
+      <p class="hint" id="folderBackupStatus" role="status">Non configurée.</p>
+      <details class="tuto">
+        <summary>📘 Comment ça marche avec OneDrive ?</summary>
+        <ol>
+          <li>Installez l'application OneDrive sur votre ordinateur (déjà présente sur Windows 10/11) et connectez-vous : un dossier <strong>OneDrive</strong> apparaît dans l'explorateur de fichiers.</li>
+          <li>Cliquez sur <strong>« Choisir le fichier de sauvegarde… »</strong>, ouvrez le dossier OneDrive (ou un sous-dossier, ex. <code>OneDrive/Comptes</code>) et validez le nom <code>comptes-famille.json</code>.</li>
+          <li>Le navigateur demande l'autorisation de modifier ce fichier : acceptez. Chaque modification y est ensuite enregistrée en quelques secondes.</li>
+          <li>Après avoir fermé le navigateur, il faut parfois cliquer sur <strong>« ▶ Réactiver »</strong> (le navigateur redemande l'autorisation par sécurité).</li>
+          <li>Pour retrouver vos données sur un autre ordinateur : choisissez le même fichier puis <strong>« Restaurer depuis ce fichier »</strong>. Sur téléphone, utilisez <em>Importer une sauvegarde</em> en ouvrant le fichier depuis l'application OneDrive.</li>
+        </ol>
+        <p class="hint">Contrairement à Google Drive, cette sauvegarde est <strong>à sens unique</strong> (cet ordinateur → OneDrive) : elle ne synchronise pas automatiquement plusieurs appareils entre eux. Une connexion directe à OneDrive demanderait d'enregistrer l'application auprès de Microsoft (compte développeur Azure) ; la synchronisation entre appareils reste donc assurée par Google Drive.</p>
+      </details>
     </div>
 
     <div class="card">
@@ -1017,6 +1211,23 @@
         <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_monthTable" onchange="updateDashboardConfig()" style="width:auto;"> Détail mensuel</label>
         <label class="chk on" style="display:inline-flex;"><input type="checkbox" id="dashCfg_yearCompare" onchange="updateDashboardConfig()" style="width:auto;"> Comparaison annuelle</label>
       </div>
+    </div>
+
+    <div class="card" id="paymentMethodsCard">
+      <h2 style="font-size:15px;">💳 Moyens de paiement</h2>
+      <p class="sub">Indiquez avec quoi chaque opération a été payée. À l'import d'un relevé, le moyen est reconnu automatiquement grâce aux mots-clés du libellé bancaire (séparés par des virgules).</p>
+      <div class="grid-form">
+        <div class="field"><label for="newPaymentName">Nom</label><input type="text" id="newPaymentName" placeholder="Ex : Carte de Julie"></div>
+        <div class="field"><label for="newPaymentKeywords">Mots-clés du libellé (optionnel)</label><input type="text" id="newPaymentKeywords" placeholder="Ex : CB JULIE, CARTE 4521"></div>
+        <div class="field" style="align-self:end;"><button class="btn" onclick="addPaymentMethod()">Ajouter</button></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Nom</th><th>Mots-clés</th><th class="num">Opérations</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody id="paymentMethodTable"></tbody>
+        </table>
+      </div>
+      <button class="btn secondary small" onclick="detectPaymentMethodsOnExisting()" style="margin-top:8px;">🔍 Reconnaître le moyen de paiement des opérations qui n'en ont pas</button>
     </div>
 
     <div class="card danger">
@@ -1215,6 +1426,133 @@ function csvCell(v){
   const s = String(v == null ? "" : v);
   return /[;"\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
 }
+
+/* ---- Fusion de deux versions (cet appareil / Google Drive), enregistrement par enregistrement ----
+   Chaque enregistrement porte `mt`, l'heure de sa dernière modification ; une suppression laisse
+   une « pierre tombale » `deleted["collection:id"] = heure`. Au lieu de garder une version entière
+   et de jeter l'autre (ce qui faisait perdre des catégorisations faites sur un autre appareil),
+   on garde pour chaque opération, catégorie… la version modifiée le plus récemment. */
+const MERGED_COLLECTIONS = ["categories","rules","transactions","imports","accounts","budgets","budgetAdjustments","recurring","paymentMethods"];
+const TOMBSTONE_TTL_MS = 400 * 86400000;
+
+function mergeTombstones(a, b, now){
+  const out = {};
+  [a, b].forEach(d=>{
+    if(!d || typeof d !== "object") return;
+    Object.keys(d).forEach(k=>{
+      const v = Number(d[k]) || 0;
+      if(v > (out[k] || 0)) out[k] = v;
+    });
+  });
+  if(now) Object.keys(out).forEach(k=>{ if(now - out[k] > TOMBSTONE_TTL_MS) delete out[k]; });
+  return out;
+}
+
+/* Deux versions d'une même opération : la plus récente l'emporte. Les commentaires des deux sont
+   réunis (deux personnes peuvent commenter en même temps). À égalité (données d'avant cette
+   version, sans `mt`), une catégorie présente d'un seul côté n'est jamais perdue. */
+function mergeTxPair(a, b, deleted){
+  const aTime = a.mt || 0, bTime = b.mt || 0;
+  const win = bTime > aTime ? b : a, lose = win === a ? b : a;
+  const out = Object.assign({}, win);
+  if(aTime === bTime && !out.categoryId && lose.categoryId){
+    out.categoryId = lose.categoryId;
+    out.source = lose.source;
+  }
+  if(Array.isArray(a.comments) || Array.isArray(b.comments)){
+    const byId = new Map();
+    [win, lose].forEach(t=>(Array.isArray(t.comments) ? t.comments : []).forEach(c=>{
+      if(c && c.id != null && !byId.has(c.id) && !deleted["comment:" + c.id]) byId.set(c.id, c);
+    }));
+    out.comments = Array.from(byId.values()).sort((x,y)=>(x.at||0)-(y.at||0));
+  }
+  return out;
+}
+
+function mergeRecords(coll, newerList, olderList, deleted){
+  const olderById = new Map();
+  olderList.forEach(o=>{ if(o && o.id != null && !olderById.has(o.id)) olderById.set(o.id, o); });
+  const alive = (o)=>{ const t = deleted[coll + ":" + o.id]; return !t || (o.mt || 0) > t; };
+  const seen = new Set();
+  const result = [];
+  newerList.forEach(o=>{
+    if(!o || o.id == null || seen.has(o.id)) return;
+    seen.add(o.id);
+    const other = olderById.get(o.id);
+    let pick = o;
+    if(other){
+      if(coll === "transactions") pick = mergeTxPair(o, other, deleted);
+      // Une catégorie « récupérée » (recréée faute de mieux) cède toujours la place à la vraie.
+      else if(o.recovered && !other.recovered) pick = other;
+      else if(other.recovered && !o.recovered) pick = o;
+      else if((other.mt || 0) > (o.mt || 0)) pick = other;
+    }
+    if(alive(pick)) result.push(pick);
+  });
+  olderList.forEach(o=>{
+    if(!o || o.id == null || seen.has(o.id)) return;
+    seen.add(o.id);
+    if(alive(o)) result.push(o);
+  });
+  return result;
+}
+
+function mergeSyncedStates(local, remote, now){
+  const localNewer = (local.updatedAt || 0) >= (remote.updatedAt || 0);
+  const newer = localNewer ? local : remote, older = localNewer ? remote : local;
+  const deleted = mergeTombstones(local.deleted, remote.deleted, now);
+  const out = {};
+  MERGED_COLLECTIONS.forEach(coll=>{
+    const a = Array.isArray(newer[coll]) ? newer[coll] : null;
+    const b = Array.isArray(older[coll]) ? older[coll] : null;
+    if(a || b) out[coll] = mergeRecords(coll, a || [], b || [], deleted);
+  });
+  ["famTitle","dashboardConfig","chartConfig"].forEach(k=>{
+    if(newer[k] != null) out[k] = newer[k];
+    else if(older[k] != null) out[k] = older[k];
+  });
+  ["openingBalances","reconciliations"].forEach(k=>{
+    const o = older[k] && typeof older[k] === "object" ? older[k] : {};
+    const n = newer[k] && typeof newer[k] === "object" ? newer[k] : {};
+    out[k] = Object.assign({}, o, n);
+  });
+  out.deleted = deleted;
+  out.updatedAt = Math.max(local.updatedAt || 0, remote.updatedAt || 0);
+  return out;
+}
+
+/* ---- Moyens de paiement : reconnus d'après le libellé bancaire ---- */
+function normalizeForMatch(s){
+  return String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+function detectPaymentMethod(label, methods){
+  const text = " " + normalizeForMatch(label).replace(/[^A-Z0-9]+/g, " ") + " ";
+  for(const m of methods || []){
+    const kws = String(m.keywords || "").split(",").map(k=>normalizeForMatch(k).replace(/[^A-Z0-9]+/g, " ").trim()).filter(Boolean);
+    if(kws.some(k=> text.includes(" " + k + " "))) return m.id;
+  }
+  return "";
+}
+
+/* ---- Rapprochement d'une opération saisie à la main avec une ligne du relevé importé ----
+   Même compte et même montant au centime ; la plus proche en date dans la fenêtre donnée
+   (un chèque peut être encaissé plusieurs semaines plus tard). Chaque opération saisie ne sert
+   qu'une fois. Renvoie, pour chaque entrée, l'opération saisie retenue ou null. */
+function matchManualEntries(entries, manual, maxDays){
+  const used = new Set();
+  return entries.map(e=>{
+    if(!e) return null;
+    let best = -1, bestGap = Infinity;
+    manual.forEach((m, k)=>{
+      if(used.has(k) || Math.abs(m.amount - e.amount) >= 0.005 || !m.date || !e.date) return;
+      const gap = daysBetween(m.date, e.date);
+      if(gap <= maxDays && gap < bestGap){ best = k; bestGap = gap; }
+    });
+    if(best === -1) return null;
+    used.add(best);
+    return manual[best];
+  });
+}
 </script>
 <script>
 const STORAGE_KEY = "familyBudget_v1";
@@ -1249,7 +1587,7 @@ function openModal({ title="", message="", html="", fields=[], confirmLabel="OK"
   cancelBtn.style.display = hideCancel ? "none" : "inline-block";
   modalState = { fields, onConfirm, onCancel };
   document.getElementById("modalOverlay").classList.add("open");
-  setTimeout(()=>{ const first = fieldsBox.querySelector("input"); if(first) first.focus(); else okBtn.focus(); }, 30);
+  setTimeout(()=>{ const first = fieldsBox.querySelector("input,textarea,select"); if(first) first.focus(); else okBtn.focus(); }, 30);
 }
 function closeModal(){
   document.getElementById("modalOverlay").classList.remove("open");
@@ -1280,6 +1618,11 @@ function renderModalField(f){
   if(f.type === "select"){
     input = `<select id="${id}">${(f.options||[]).map(o=>
       `<option value="${escapeHtml(o.value)}" ${String(o.value)===String(val)?"selected":""}>${escapeHtml(o.label)}</option>`).join("")}</select>`;
+  }else if(f.type === "textarea"){
+    input = `<textarea id="${id}" placeholder="${escapeHtml(f.placeholder||"")}" rows="${f.rows||3}">${escapeHtml(val)}</textarea>`;
+  }else if(f.type === "radio"){
+    return `<fieldset class="modal-field" style="border:none; padding:0; margin:0 0 10px;">${f.label ? `<legend style="font-size:13px; margin-bottom:6px;">${escapeHtml(f.label)}</legend>` : ""}${(f.options||[]).map((o, i)=>
+      `<label class="chk" style="display:flex; margin-bottom:6px;"><input type="radio" name="${id}" value="${escapeHtml(o.value)}" style="width:auto;" ${String(o.value)===String(val) ? "checked" : ""}> ${escapeHtml(o.label)}</label>`).join("")}</fieldset>`;
   }else if(f.type === "checkbox"){
     return `<div class="modal-field"><label class="chk"><input type="checkbox" id="${id}" style="width:auto;" ${val?"checked":""}> ${escapeHtml(f.label||"")}</label></div>`;
   }else{
@@ -1302,7 +1645,10 @@ function modalOk(){
   if(!modalState) return;
   const current = modalState;
   const values = {};
-  current.fields.forEach(f=>{ const el = document.getElementById("modalField_"+f.id); if(el) values[f.id] = f.type === "checkbox" ? el.checked : el.value; });
+  current.fields.forEach(f=>{
+    if(f.type === "radio"){ const r = document.querySelector(`input[name="modalField_${f.id}"]:checked`); values[f.id] = r ? r.value : ""; return; }
+    const el = document.getElementById("modalField_"+f.id); if(el) values[f.id] = f.type === "checkbox" ? el.checked : el.value;
+  });
   const result = current.onConfirm ? current.onConfirm(values) : true;
   // Ne ferme pas une nouvelle fenêtre ouverte par le callback lui-même.
   if(result !== false && modalState === current) closeModal();
@@ -1310,6 +1656,10 @@ function modalOk(){
 // Entrée = valider, Échap = fermer, quand la modale est ouverte
 document.addEventListener("keydown", (e)=>{
   if(!isModalOpen()) return;
+  // Dans une zone de texte, Entrée va à la ligne ; Ctrl+Entrée valide.
+  if(e.key === "Enter" && e.target && e.target.tagName === "TEXTAREA" && !(e.ctrlKey || e.metaKey)) return;
+  // Entrée sur un bouton de la fenêtre (ex. « Supprimer » un commentaire) : action du bouton.
+  if(e.key === "Enter" && e.target && e.target.tagName === "BUTTON" && e.target.id !== "modalOkBtn" && e.target.closest("#modalBodyHtml")) return;
   if(e.key === "Enter"){ e.preventDefault(); modalOk(); }
   else if(e.key === "Escape"){ e.preventDefault(); closeModal(); }
 });
@@ -1354,6 +1704,20 @@ function defaultCategories(){
 function defaultDashboardConfig(){
   return { monthlyChart:true, categoryChart:true, budgetStatus:true, breakdown:true, monthTable:true, yearCompare:true };
 }
+/* Identifiants fixes : deux appareils qui créent les moyens par défaut obtiennent les mêmes. */
+function defaultPaymentMethods(){
+  return [
+    { id: "pm_card", name: "Carte bancaire", keywords: "CB, CARTE, PAIEMENT CB, ACHAT CB" },
+    { id: "pm_transfer", name: "Virement", keywords: "VIR, VIREMENT, VIR SEPA, VIRT" },
+    { id: "pm_debit", name: "Prélèvement", keywords: "PRLV, PRELEVEMENT, PRELEV, ECHEANCE" },
+    { id: "pm_cheque", name: "Chèque", keywords: "CHQ, CHEQUE, REMISE CHQ" },
+    { id: "pm_cash", name: "Espèces", keywords: "RETRAIT, DAB, RETRAIT DAB, ESPECES" },
+  ];
+}
+function defaultChartConfig(){
+  return { evolType: "line", showIn: true, showOut: true, showBalance: true, showNet: false,
+           catType: "line", catTopN: 6, catFlow: "out", catLevel: "group" };
+}
 function defaultState(){
   return {
     famTitle: "Compte personnel",
@@ -1361,7 +1725,8 @@ function defaultState(){
     accounts: [{ id: uid(), name: "Compte personnel" }],
     openingBalances: {},
     budgets: [], budgetAdjustments: [], dashboardConfig: defaultDashboardConfig(),
-    recurring: [], reconciliations: {}
+    recurring: [], reconciliations: {},
+    paymentMethods: defaultPaymentMethods(), chartConfig: defaultChartConfig(), deleted: {}
   };
 }
 
@@ -1388,10 +1753,14 @@ function sanitizeIds(s){
   remap(s.budgetAdjustments, a=>{ a.budgetId = fix(budgetMap, a.budgetId); });
   const budgetIds = new Set(s.budgets.map(b=>b.id));
   s.budgetAdjustments = s.budgetAdjustments.filter(a=>budgetIds.has(a.budgetId) && /^\d{4}-\d{2}$/.test(a.month));
+  const pmMap = remap(s.paymentMethods);
   remap(s.transactions, t=>{
     t.categoryId = fix(catMap, t.categoryId); if(t.categoryId && !isSafeId(t.categoryId)) t.categoryId = "";
     t.accountId = fix(accMap, t.accountId); if(t.accountId && !isSafeId(t.accountId)) t.accountId = "";
     t.batchId = fix(batchMap, t.batchId);
+    t.paymentMethodId = fix(pmMap, t.paymentMethodId); if(t.paymentMethodId && !isSafeId(t.paymentMethodId)) delete t.paymentMethodId;
+    if(t.bank) t.bank.batchId = fix(batchMap, t.bank.batchId);
+    if(t.comments) remap(t.comments);
   });
   s.imports.forEach(b=>{ b.accountId = fix(accMap, b.accountId); });
   remap(s.recurring, r=>{
@@ -1404,6 +1773,12 @@ function sanitizeIds(s){
   const rc = {};
   Object.keys(s.reconciliations || {}).forEach(k=>{ const nk = fix(accMap, k); if(isSafeId(nk)) rc[nk] = s.reconciliations[k]; });
   s.reconciliations = rc;
+  const del = {};
+  Object.keys(s.deleted || {}).forEach(k=>{
+    const v = Number(s.deleted[k]);
+    if(/^[A-Za-z]{1,32}:[A-Za-z0-9_-]{1,64}$/.test(k) && isFinite(v) && v > 0) del[k] = v;
+  });
+  s.deleted = del;
 }
 
 /* Corrige/complète les données anciennes : comptes manquants, opérations sans compte,
@@ -1412,6 +1787,11 @@ function migrateState(s){
   ["categories","rules","transactions","imports","accounts","budgets","budgetAdjustments","recurring"].forEach(k=>{
     s[k] = Array.isArray(s[k]) ? s[k].filter(x=>x && typeof x === "object") : [];
   });
+  // Moyens de paiement : liste par défaut pour les données d'avant leur apparition.
+  s.paymentMethods = Array.isArray(s.paymentMethods) ? s.paymentMethods.filter(x=>x && typeof x === "object") : defaultPaymentMethods();
+  s.paymentMethods.forEach(m=>{ m.name = String(m.name == null ? "" : m.name); m.keywords = String(m.keywords == null ? "" : m.keywords); });
+  s.chartConfig = Object.assign(defaultChartConfig(), s.chartConfig && typeof s.chartConfig === "object" ? s.chartConfig : {});
+  if(!s.deleted || typeof s.deleted !== "object" || Array.isArray(s.deleted)) s.deleted = {};
   if(!s.openingBalances || typeof s.openingBalances !== "object") s.openingBalances = {};
   if(!s.reconciliations || typeof s.reconciliations !== "object" || Array.isArray(s.reconciliations)) s.reconciliations = {};
   // Ne JAMAIS écarter une opération : un montant stocké en texte (ex. par un script Google qui
@@ -1427,6 +1807,16 @@ function migrateState(s){
     delete t.hash;
     if(t.note != null) t.note = String(t.note);
     t.checked = !!t.checked;
+    if(t.comments != null){
+      t.comments = (Array.isArray(t.comments) ? t.comments : [])
+        .filter(c=>c && typeof c === "object" && String(c.text == null ? "" : c.text).trim())
+        .map(c=>({ id: c.id, text: String(c.text), at: Number(c.at) || 0, author: String(c.author == null ? "" : c.author) }));
+      if(!t.comments.length) delete t.comments;
+    }
+    if(t.bank != null){
+      if(t.bank && typeof t.bank === "object") t.bank = { label: String(t.bank.label == null ? "" : t.bank.label), date: isValidIsoDate(t.bank.date) ? t.bank.date : "", batchId: t.bank.batchId || "" };
+      else delete t.bank;
+    }
   });
   s.recurring.forEach(r=>{
     r.label = String(r.label == null ? "" : r.label);
@@ -1449,6 +1839,7 @@ function migrateState(s){
     a.note = String(a.note == null ? "" : a.note);
   });
   sanitizeIds(s);
+  recoverOrphanCategories(s);
   if(s.accounts.length === 0){
     s.accounts = [{ id: uid(), name: s.famTitle || "Compte personnel" }];
   }
@@ -1461,6 +1852,26 @@ function migrateState(s){
   }
   s.accounts.forEach(a=>{ if(!s.openingBalances[a.id]) s.openingBalances[a.id] = { date:"", amount:0 }; });
   return s;
+}
+
+/* Une opération (ou règle, échéance, budget) qui pointe vers une catégorie absente de la liste
+   — par exemple après l'import d'une sauvegarde qui remplaçait toutes les catégories — gardait
+   son identifiant mais s'affichait « à trier » : la catégorisation semblait perdue. On recrée une
+   catégorie (marquée « récupérée », à renommer) avec le MÊME identifiant pour ne rien perdre ; si
+   la vraie catégorie revient d'un autre appareil, elle la remplace à la fusion. */
+function recoverOrphanCategories(s){
+  const known = new Set(s.categories.map(c=>c.id));
+  const missing = [];
+  const note = (id)=>{ if(id && !known.has(id)){ known.add(id); missing.push(id); } };
+  s.transactions.forEach(t=>note(t.categoryId));
+  s.rules.forEach(r=>note(r.categoryId));
+  s.recurring.forEach(r=>note(r.categoryId));
+  s.budgets.forEach(b=>{ if(b.scope && b.scope.type === "category") note(b.scope.value); });
+  const n0 = s.categories.filter(c=>c.recovered).length;
+  missing.forEach((id, i)=>{
+    s.categories.push({ id, name: "Catégorie récupérée " + (n0 + i + 1), group: "À renommer", recovered: true });
+  });
+  return missing.length;
 }
 
 /* Données enregistrées par une ANCIENNE version de l'appli (ex. un index.html plus ancien remis
@@ -1511,6 +1922,7 @@ function serializeState(){
     famTitle: state.famTitle, categories: state.categories, rules: state.rules, transactions: state.transactions, imports: state.imports,
     accounts: state.accounts, openingBalances: state.openingBalances, budgets: state.budgets, budgetAdjustments: state.budgetAdjustments,
     dashboardConfig: state.dashboardConfig, recurring: state.recurring, reconciliations: state.reconciliations,
+    paymentMethods: state.paymentMethods, chartConfig: state.chartConfig, deleted: state.deleted,
     updatedAt: state.updatedAt || 0
   };
 }
@@ -1531,6 +1943,9 @@ function assignStateFrom(src){
   if(src.dashboardConfig && typeof src.dashboardConfig === "object") state.dashboardConfig = src.dashboardConfig;
   if(Array.isArray(src.recurring)) state.recurring = src.recurring;
   if(src.reconciliations && typeof src.reconciliations === "object") state.reconciliations = src.reconciliations;
+  if(Array.isArray(src.paymentMethods)) state.paymentMethods = src.paymentMethods;
+  if(src.chartConfig && typeof src.chartConfig === "object") state.chartConfig = src.chartConfig;
+  if(src.deleted && typeof src.deleted === "object") state.deleted = src.deleted;
   migrateState(state);
 }
 function saveLocal(){
@@ -1555,7 +1970,6 @@ let persistTimer = null;
 let autoRefreshTimer = null;
 let lastSyncedAt = 0;
 let localDirty = false;
-let conflictOpen = false;
 
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
@@ -1566,6 +1980,7 @@ function setDirty(v){ localDirty = !!v; lsSet(DIRTY_KEY, localDirty ? "1" : "0")
 
 function initStorage(){
   famTitleInput.value = state.famTitle;
+  resetStampBaseline();
   if(matchRecurringWithTransactions()) saveLocal();
   resetUndoHistory();
   renderAll();
@@ -1639,7 +2054,7 @@ function startAutoRefresh(){
     // Ne pas interrompre une sélection de catégorie ou une fenêtre de dialogue en cours.
     const picker = document.getElementById("catMenuPopover");
     if(picker && picker.classList.contains("open")) return;
-    if(isModalOpen() || conflictOpen) return;
+    if(isModalOpen()) return;
     refreshFromDrive(false);
   }, 60000);
 }
@@ -1672,10 +2087,12 @@ function applyRemote(remote){
   assignStateFrom(remote);
   resetUndoHistory(); // on n'annule pas au-delà d'une version reçue d'un autre appareil
   state.updatedAt = remote.updatedAt || 0;
+  resetStampBaseline();
   setLastSyncedAt(remote.updatedAt || Date.now());
   setDirty(false);
   famTitleInput.value = state.famTitle;
   saveLocal();
+  scheduleFolderBackup();
   renderAll();
 }
 
@@ -1685,31 +2102,66 @@ function markConnected(){
   document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR");
 }
 
-function askConflict(remote){
-  if(conflictOpen) return;
-  conflictOpen = true;
-  const remoteDate = remote.updatedAt ? new Date(remote.updatedAt).toLocaleString("fr-FR") : "date inconnue";
-  const remoteCount = Array.isArray(remote.transactions) ? remote.transactions.length : 0;
-  openModal({
-    title: "Deux versions différentes",
-    message: `La sauvegarde Google Drive a été modifiée ailleurs (${remoteDate}, ${remoteCount} opération(s)), alors que cet appareil a des modifications non envoyées (${state.transactions.length} opération(s)).\n\nQuelle version garder ? L'autre sera remplacée. En cas de doute, exportez d'abord une sauvegarde manuelle.`,
-    confirmLabel: "Garder cet appareil",
-    cancelLabel: "Prendre la version Drive",
-    danger: true,
-    onConfirm: ()=>{ conflictOpen = false; storageMode = "google"; doPersistWrite({ force:true }); return true; },
-    onCancel: ()=>{ conflictOpen = false; applyRemote(remote); markConnected(); }
+/* Drive a changé ailleurs ET cet appareil a des modifications non envoyées : au lieu de demander
+   quelle version garder (et donc d'en jeter une), on fusionne les deux enregistrement par
+   enregistrement (voir mergeSyncedStates). Ne fait aucun envoi : l'appelant renvoie le résultat. */
+function mergeRemoteIntoState(remote){
+  const merged = mergeSyncedStates(serializeState(), remote, Date.now());
+  assignStateFrom(merged);
+  dedupeAfterMerge(state);
+  state.updatedAt = Date.now();
+  resetStampBaseline();
+  resetUndoHistory(); // on n'annule pas au-delà d'une fusion avec un autre appareil
+  famTitleInput.value = state.famTitle;
+  saveLocal();
+  scheduleFolderBackup();
+  renderAll();
+}
+
+/* Après une fusion, deux appareils peuvent avoir créé chacun « la même » catégorie ou le même
+   compte (ex. catégories par défaut, catégorie créée par un import) avec des identifiants
+   différents : on n'en garde qu'un et on redirige les références. */
+function dedupeAfterMerge(s){
+  const fix = (map, v)=> (v && map[v]) ? map[v] : v;
+  // Pas de pierre tombale pour le doublon retiré : s'il revient d'un autre appareil avec des
+  // opérations qui le référencent, il sera de nouveau fusionné ici, sans rien perdre.
+  const catRemap = {}, catByKey = new Map();
+  s.categories = s.categories.filter(c=>{
+    if(c.recovered) return true;
+    const k = groupKey(c.group || "") + "|" + groupKey(c.name) + "|" + (c.transfer ? 1 : 0);
+    const first = catByKey.get(k);
+    if(first){ catRemap[c.id] = first.id; return false; }
+    catByKey.set(k, c);
+    return true;
   });
-  // Échap ferme sans choisir : la question sera reposée à la prochaine synchro.
-  const overlay = document.getElementById("modalOverlay");
-  const watcher = setInterval(()=>{ if(!overlay.classList.contains("open")){ conflictOpen = false; clearInterval(watcher); } }, 500);
-  showSyncBanner("error", "⚠️ Conflit de versions avec Google Drive — choisissez la version à garder.");
+  if(Object.keys(catRemap).length){
+    s.transactions.forEach(t=>{ t.categoryId = fix(catRemap, t.categoryId); });
+    s.rules.forEach(r=>{ r.categoryId = fix(catRemap, r.categoryId); });
+    s.recurring.forEach(r=>{ r.categoryId = fix(catRemap, r.categoryId); });
+    s.budgets.forEach(b=>{ if(b.scope && b.scope.type === "category") b.scope.value = fix(catRemap, b.scope.value); });
+  }
+  // Comptes : seul un compte homonyme SANS opération (créé par défaut sur un appareil neuf) est fusionné.
+  const used = new Set(s.transactions.map(t=>t.accountId));
+  const accByName = new Map(), accRemap = {};
+  s.accounts.forEach(a=>{ const k = groupKey(a.name); if(used.has(a.id) && !accByName.has(k)) accByName.set(k, a.id); });
+  s.accounts.forEach(a=>{
+    if(used.has(a.id)) return;
+    const k = groupKey(a.name), target = accByName.get(k);
+    if(target && target !== a.id) accRemap[a.id] = target;
+    else if(!target) accByName.set(k, a.id);
+  });
+  if(Object.keys(accRemap).length){
+    s.accounts = s.accounts.filter(a=>!accRemap[a.id]);
+    s.recurring.forEach(r=>{ r.accountId = fix(accRemap, r.accountId); });
+    s.imports.forEach(b=>{ b.accountId = fix(accRemap, b.accountId); });
+    Object.keys(accRemap).forEach(id=>{ delete s.openingBalances[id]; delete s.reconciliations[id]; });
+  }
 }
 
 async function refreshFromDrive(isInitial){
-  if(!scriptUrl || conflictOpen) return;
+  if(!scriptUrl) return;
   try{
     await flushPendingPersist(); // n'écrase jamais une saisie pas encore envoyée
-    if(conflictOpen) return;
     const remote = await fetchRemote();
     if(restoreFieldsErasedByOldVersion(remote)){ setDirty(true); renderAll(); }
     if(remoteIsEmpty(remote)){
@@ -1720,7 +2172,12 @@ async function refreshFromDrive(isInitial){
       return;
     }
     if(remoteChangedSince(remote)){
-      if(localDirty && localHasData()){ askConflict(remote); return; }
+      if(localDirty && localHasData()){
+        mergeRemoteIntoState(remote);
+        markConnected();
+        await doPersistWrite({ force:true }); // renvoie la version fusionnée
+        return;
+      }
       applyRemote(remote);
     }else if(localDirty){
       markConnected();
@@ -1751,7 +2208,7 @@ async function writeToDrive(force){
   try{
     if(!force){
       const remote = await fetchRemote();
-      if(!remoteIsEmpty(remote) && remoteChangedSince(remote)){ askConflict(remote); return; }
+      if(!remoteIsEmpty(remote) && remoteChangedSince(remote)) mergeRemoteIntoState(remote);
     }
     const payload = serializeState();
     const res = await fetch(scriptEndpoint(), {
@@ -1792,11 +2249,42 @@ async function flushPendingPersist(){
   }
 }
 
+/* Horodatage `mt` des enregistrements modifiés et pierres tombales des supprimés, par
+   comparaison avec l'état au dernier enregistrement. Fait ici, en un seul endroit, plutôt que dans
+   chacune des dizaines de fonctions qui modifient les données. */
+let stampBaseline = null;
+function recordJson(o){ return JSON.stringify(o, (k, v)=> k === "mt" ? undefined : v); }
+function resetStampBaseline(){
+  stampBaseline = {};
+  MERGED_COLLECTIONS.forEach(c=>{
+    const m = new Map();
+    (state[c] || []).forEach(o=>m.set(o.id, recordJson(o)));
+    stampBaseline[c] = m;
+  });
+}
+function stampModifiedRecords(){
+  if(!stampBaseline){ resetStampBaseline(); return; }
+  const now = Date.now();
+  MERGED_COLLECTIONS.forEach(c=>{
+    const prev = stampBaseline[c] || new Map();
+    const next = new Map();
+    (state[c] || []).forEach(o=>{
+      const j = recordJson(o);
+      if(prev.get(o.id) !== j){ o.mt = now; delete state.deleted[c + ":" + o.id]; }
+      next.set(o.id, j);
+    });
+    prev.forEach((j, id)=>{ if(!next.has(id)) state.deleted[c + ":" + id] = now; });
+    stampBaseline[c] = next;
+  });
+}
+
 function schedulePersist(){
+  stampModifiedRecords();
   recordUndoPoint();
   state.updatedAt = Date.now();
   setDirty(true);
   saveLocal();
+  scheduleFolderBackup();
   if(storageMode !== "google" || !scriptUrl) return;
   clearTimeout(persistTimer);
   persistTimer = setTimeout(()=>{ persistTimer = null; doPersistWrite(); }, 1200);
@@ -1900,15 +2388,27 @@ function lastDayOfMonth(monthStr){
   const [y, m] = monthStr.split("-").map(Number);
   return `${monthStr}-${pad2(new Date(y, m, 0).getDate())}`;
 }
+/* Valeur du filtre « Catégorie » pour une catégorie principale, telle qu'écrite dans la liste
+   (« Alimentation » et « alimentation  » sont la même). */
+function groupFilterValue(name){
+  const g = uniqueScopeGroups().find(x=>groupKey(x) === groupKey(name));
+  return "g:" + (g || String(name || "").trim());
+}
 function showScopeTransactions(type, value, period){
-  const set = (id, v)=>{ const el = document.getElementById(id); if(el) el.value = v; };
-  set("filterSearch", ""); set("filterMonth", ""); set("filterChecked", "");
-  document.getElementById("onlyUncategorized").checked = false;
-  renderCategories(); // garantit que l'option de la portée existe
-  set("filterCategory", type === "group" ? "g:" + value : value);
   let from = "", to = "";
   if(/^\d{4}-\d{2}$/.test(period || "")){ from = period + "-01"; to = lastDayOfMonth(period); }
   else if(/^\d{4}$/.test(period || "")){ from = period + "-01-01"; to = period + "-12-31"; }
+  const category = type === "group" ? groupFilterValue(value) : (type === "category" ? value : (type === "none" ? "__none__" : ""));
+  showTransactionsFiltered({ category, from, to, sign: type === "in" || type === "out" ? type : "" });
+}
+/* Ouvre le journal avec exactement ces filtres (les autres sont remis à zéro). */
+function showTransactionsFiltered({ category="", from="", to="", sign="" }={}){
+  const set = (id, v)=>{ const el = document.getElementById(id); if(el) el.value = v; };
+  set("filterSearch", ""); set("filterMonth", ""); set("filterChecked", ""); set("filterPayment", "");
+  document.getElementById("onlyUncategorized").checked = false;
+  renderCategories(); // garantit que l'option de la portée existe
+  set("filterCategory", category);
+  set("filterSign", sign);
   set("filterFrom", from); set("filterTo", to);
   activateTab("transactions");
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1916,7 +2416,7 @@ function showScopeTransactions(type, value, period){
   if(chip){ chip.tabIndex = -1; chip.focus({ preventScroll:true }); }
 }
 function clearTransactionFilters(){
-  ["filterSearch","filterCategory","filterMonth","filterFrom","filterTo","filterChecked"].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ""; });
+  ["filterSearch","filterCategory","filterMonth","filterFrom","filterTo","filterSign","filterPayment","filterChecked"].forEach(id=>{ const el = document.getElementById(id); if(el) el.value = ""; });
   document.getElementById("onlyUncategorized").checked = false;
   renderTransactions();
 }
@@ -1955,6 +2455,11 @@ function renderActiveFilterChip(){
   if(from && to && from.slice(0,7) === to.slice(0,7) && from.endsWith("-01") && to === lastDayOfMonth(from.slice(0,7))) parts.push(monthLabelFr(from.slice(0,7)));
   else if(from && to && from.endsWith("-01-01") && to.endsWith("-12-31") && from.slice(0,4) === to.slice(0,4)) parts.push("année " + from.slice(0,4));
   else if(from || to) parts.push(((from ? "du " + from.split("-").reverse().join("/") : "") + (to ? " au " + to.split("-").reverse().join("/") : "")).trim());
+  const sign = val("filterSign");
+  if(sign) parts.push(sign === "in" ? "revenus" : "dépenses");
+  const pay = val("filterPayment");
+  if(pay === "__none__") parts.push("sans moyen de paiement");
+  else if(pay){ const m = (state.paymentMethods || []).find(x=>x.id===pay); parts.push(m ? m.name : "moyen de paiement supprimé"); }
   const checked = val("filterChecked");
   if(checked) parts.push(checked === "yes" ? "pointées" : "non pointées");
   const count = document.getElementById("filtersCount");
@@ -3023,6 +3528,7 @@ function reapplyRules(){
 /* ---------------- Import CSV ---------------- */
 let parsedRows = null, parsedHeaders = null;
 let duplicateMatches = []; // parallèle à parsedRows : null ou {idx,date,label,amount,matchDate}
+let reconcileMatches = []; // parallèle à parsedRows : null ou {idx,txId,gap} (saisie manuelle retrouvée)
 
 const dropZone = document.getElementById("dropZone");
 ["dragover","dragleave","drop"].forEach(evt=>{
@@ -3224,13 +3730,23 @@ function checkDuplicates(){
   // forcément un doublon). Les lignes du fichier ne sont pas comparées entre elles : deux
   // abonnements identiques le même jour sont de vraies opérations.
   const targetAccountId = importTargetAccountId();
-  const pool = state.transactions.filter(t=>t.accountId===targetAccountId);
+  const accountTxs = state.transactions.filter(t=>t.accountId===targetAccountId);
+  // Doublons : opérations déjà importées, ou saisies déjà rapprochées d'une ligne de relevé
+  // (comparées alors sur le libellé et la date de la banque).
+  const pool = accountTxs.filter(t=>!isManualUnlinked(t))
+    .map(t=> t.bank ? { label: t.bank.label, date: t.bank.date || t.date, amount: t.amount } : t);
   const entries = parsedRows.map(r=>{ const e = readCsvRow(r); return e.valid ? e : null; });
   const { matches } = matchOneToOne(entries, pool);
 
   duplicateMatches = entries.map((e, idx)=> (e && matches[idx])
     ? { idx, date: e.date, label: e.label, amount: e.amount, matchDate: matches[idx].date }
     : null);
+
+  // Saisies manuelles (pas encore rapprochées) qui correspondent à une ligne restante du fichier.
+  const rest = entries.map((e, idx)=> e && !duplicateMatches[idx] ? e : null);
+  const linked = matchManualEntries(rest, accountTxs.filter(isManualUnlinked), LINK_MAX_DAYS);
+  reconcileMatches = linked.map((m, idx)=> m ? { idx, txId: m.id, gap: Math.round(daysBetween(m.date, entries[idx].date)) } : null);
+  renderReconcileImportBox(entries);
 
   const dups = duplicateMatches.filter(Boolean);
   const box = document.getElementById("duplicatesBox");
@@ -3251,6 +3767,27 @@ function checkDuplicates(){
            </label></td>
      </tr>`
   ).join("") + (dups.length > shown.length ? `<tr><td colspan="5" class="hint">… et ${dups.length - shown.length} autre(s), traitées comme doublons par défaut</td></tr>` : "");
+}
+
+const RECONCILE_AUTO_DAYS = 10;
+function renderReconcileImportBox(entries){
+  const box = document.getElementById("reconcileImportBox");
+  const recs = reconcileMatches.filter(Boolean);
+  if(!recs.length){ box.style.display = "none"; document.getElementById("reconcileImportTable").innerHTML = ""; return; }
+  box.style.display = "block";
+  document.getElementById("reconcileImportIntro").textContent =
+    `${recs.length} ligne(s) de ce fichier ont le même montant qu'une opération que vous aviez saisie à la main. Cochées, elles ne sont pas ajoutées en double : votre saisie est conservée (libellé, catégorie, commentaires) et reçoit le libellé et la date de la banque. Les propositions à plus de ${RECONCILE_AUTO_DAYS} jours d'écart sont décochées par défaut : vérifiez-les.`;
+  document.getElementById("reconcileImportTable").innerHTML = recs.slice(0, 120).map(r=>{
+    const e = entries[r.idx];
+    const m = state.transactions.find(x=>x.id===r.txId) || {};
+    return `<tr>
+      <td>${escapeHtml(e.date)}<span class="tx-note" style="font-style:normal;">${escapeHtml(e.label)}</span></td>
+      <td class="num">${euro(e.amount)}</td>
+      <td>${escapeHtml(m.date || "")}<span class="tx-note" style="font-style:normal;">${escapeHtml(m.label || "")}${r.gap ? ` — ${r.gap} j d'écart` : ""}</span></td>
+      <td><label class="chk" style="display:inline-flex; white-space:nowrap;">
+        <input type="checkbox" class="reconcileChk" data-idx="${r.idx}" style="width:auto;" ${r.gap <= RECONCILE_AUTO_DAYS ? "checked" : ""}> Rapprocher</label></td>
+    </tr>`;
+  }).join("") + (recs.length > 120 ? `<tr><td colspan="4" class="hint">… et ${recs.length - 120} autre(s), rapprochée(s) si l'écart est de ${RECONCILE_AUTO_DAYS} jours au plus</td></tr>` : "");
 }
 
 /* Montant d'une ligne du CSV, NaN si illisible. En mode Débit/Crédit, une ligne qui remplit
@@ -3328,16 +3865,38 @@ function confirmImport(){
   const forceImportIdxs = new Set(
     Array.from(document.querySelectorAll(".dupImportChk:checked")).map(chk=>Number(chk.dataset.idx))
   );
+  const shownReconcile = new Set(Array.from(document.querySelectorAll(".reconcileChk")).map(chk=>Number(chk.dataset.idx)));
+  const reconcileIdxs = new Set(
+    Array.from(document.querySelectorAll(".reconcileChk:checked")).map(chk=>Number(chk.dataset.idx))
+  );
+  // Propositions au-delà des 120 affichées : rapprochées si l'écart est faible.
+  reconcileMatches.forEach(m=>{ if(m && !shownReconcile.has(m.idx) && m.gap <= RECONCILE_AUTO_DAYS) reconcileIdxs.add(m.idx); });
   const categoriesBefore = state.categories.length;
   const batchId = uid();
   const newTxs = [];
-  let added = 0, skipped = 0, fromFile = 0, rejected = 0;
+  let added = 0, skipped = 0, fromFile = 0, rejected = 0, linked = 0;
   parsedRows.forEach((r, idx)=>{
     const { date, label, amount, valid } = readCsvRow(r);
     if(!valid){ rejected++; return; }
 
     const isDuplicate = !!(duplicateMatches[idx]);
     if(isDuplicate && !forceImportIdxs.has(idx)){ skipped++; return; }
+
+    const rec = reconcileMatches[idx];
+    if(rec && reconcileIdxs.has(idx)){
+      const m = state.transactions.find(x=>x.id===rec.txId);
+      if(m && isManualUnlinked(m)){
+        m.bank = { label, date, batchId };
+        m.date = date; // la date de la banque fait foi pour le solde et le pointage
+        if(!m.categoryId){
+          const cid = (catCol && r[catCol] && r[catCol].trim()) ? findOrCreateCategory(r[catCol]) : matchRule(label);
+          if(cid){ m.categoryId = cid; m.source = catCol && r[catCol] && r[catCol].trim() ? "import" : "rule"; }
+        }
+        if(!m.paymentMethodId){ const pm = detectPaymentMethod(label, state.paymentMethods); if(pm) m.paymentMethodId = pm; }
+        linked++;
+        return;
+      }
+    }
 
     let categoryId = "", source = "";
     if(catCol && r[catCol] && r[catCol].trim()){
@@ -3350,24 +3909,29 @@ function confirmImport(){
     }
 
     const tx = { id: uid(), date, label, amount, categoryId, source, batchId, accountId };
+    const pm = detectPaymentMethod(label, state.paymentMethods);
+    if(pm) tx.paymentMethodId = pm;
     state.transactions.push(tx);
     newTxs.push(tx);
     added++;
   });
-  if(added > 0){
+  if(added > 0 || linked > 0){
     const accName = (state.accounts.find(a=>a.id===accountId)||{}).name || "";
-    state.imports.unshift({ id: batchId, fileName: currentImportFileName, importedAt: new Date().toISOString(), count: added, accountId, accountName: accName });
+    state.imports.unshift({ id: batchId, fileName: currentImportFileName, importedAt: new Date().toISOString(), count: added, linked, accountId, accountName: accName });
   }
   if(added > 0) matchRecurringWithTransactions();
-  if(state.categories.length !== categoriesBefore || added > 0) schedulePersist();
+  if(state.categories.length !== categoriesBefore || added > 0 || linked > 0) schedulePersist();
   parsedRows = null;
   duplicateMatches = [];
+  reconcileMatches = [];
+  document.getElementById("reconcileImportBox").style.display = "none";
   document.getElementById("mappingBox").style.display = "none";
   document.getElementById("duplicatesBox").style.display = "none";
   document.getElementById("missingBox").style.display = "none";
   document.getElementById("csvFile").value = "";
   renderAll();
   appAlert(`${added} opération(s) importée(s) (dont ${fromFile} déjà catégorisée(s) depuis le fichier). ${skipped} doublon(s) ignoré(s).` +
+    (linked ? ` ${linked} opération(s) saisie(s) à la main rapprochée(s) du relevé.` : "") +
     (rejected ? ` ${rejected} ligne(s) illisible(s) écartée(s).` : ""));
   document.querySelector('nav.tabs button[data-view="transactions"]').click();
 }
@@ -3586,6 +4150,8 @@ function getFilteredTransactions(){
     const asAmount = /\d/.test(searchRaw) ? parseFrenchNumber(searchRaw) : NaN;
     rows = rows.filter(t=> t.label.toLowerCase().includes(search)
       || (t.note && t.note.toLowerCase().includes(search))
+      || (t.bank && t.bank.label.toLowerCase().includes(search))
+      || (t.comments && t.comments.some(c=>c.text.toLowerCase().includes(search)))
       || (!isNaN(asAmount) && Math.abs(Math.abs(t.amount) - Math.abs(asAmount)) < 0.005));
   }
   if(onlyUncategorized) rows = rows.filter(t=>!t.categoryId);
@@ -3595,6 +4161,14 @@ function getFilteredTransactions(){
   if(monthFilter) rows = rows.filter(t=>monthKey(t.date) === monthFilter);
   if(from) rows = rows.filter(t=>t.date && t.date >= from);
   if(to) rows = rows.filter(t=>t.date && t.date <= to);
+  const signFilter = document.getElementById("filterSign").value;
+  if(signFilter){
+    const catMap = categoryMap();
+    rows = rows.filter(t=> !isTransferTx(t, catMap) && (signFilter === "in" ? t.amount > 0 : t.amount < 0));
+  }
+  const payFilter = document.getElementById("filterPayment").value;
+  if(payFilter === "__none__") rows = rows.filter(t=>!t.paymentMethodId);
+  else if(payFilter) rows = rows.filter(t=>t.paymentMethodId === payFilter);
   if(checkedFilter === "yes") rows = rows.filter(t=>t.checked);
   else if(checkedFilter === "no") rows = rows.filter(t=>!t.checked);
   // Le regroupement force un tri par date pour que les mois restent contigus.
@@ -3630,7 +4204,7 @@ function renderTransactions(){
   txFilteredIds = rows.map(t=>t.id);
 
   // Nouvelle recherche / nouveau filtre : on repart de la première page.
-  const filterKey = [currentAccountId(), ...["filterSearch","filterCategory","filterMonth","filterFrom","filterTo","filterChecked","sortBy"]
+  const filterKey = [currentAccountId(), ...["filterSearch","filterCategory","filterMonth","filterFrom","filterTo","filterSign","filterPayment","filterChecked","sortBy"]
     .map(id=>document.getElementById(id).value), groupByMonth, document.getElementById("onlyUncategorized").checked].join("|");
   if(filterKey !== txLastFilterKey){ txShowLimit = TX_PAGE_SIZE; txLastFilterKey = filterKey; }
 
@@ -3649,7 +4223,9 @@ function renderTransactions(){
   if(groupByMonth) rows.forEach(t=>{ const mk = monthKey(t.date) || "?"; monthTotals[mk] = (monthTotals[mk]||0) + t.amount; });
 
   const catMap = categoryMap();
+  const payMap = new Map((state.paymentMethods || []).map(m=>[m.id, m]));
   const shown = rows.slice(0, txShowLimit);
+  const linkable = linkCandidatesIndex();
   let lastMonth = null;
   const html = [];
   shown.forEach(t=>{
@@ -3668,17 +4244,24 @@ function renderTransactions(){
     const mainLabel = cat ? (cat.group || cat.name) : "";
     const subLabel = cat && cat.group ? cat.name : "";
     const bal = balances ? balances.get(t.id) : undefined;
+    const pm = t.paymentMethodId ? payMap.get(t.paymentMethodId) : null;
+    const meta = [
+      pm ? `<span class="tag pay" title="Moyen de paiement">💳 ${escapeHtml(pm.name)}</span>` : "",
+      t.bank ? `<span class="tag bank" title="Rapprochée du relevé bancaire : ${escapeHtml(t.bank.label)}${t.bank.date ? " (" + escapeHtml(t.bank.date) + ")" : ""}">🔗 ${escapeHtml(t.bank.label)}</span>` : ""
+    ].join("");
+    const nComments = t.comments ? t.comments.length : 0;
+    const canLink = linkable.has(t.id);
     html.push(`<tr class="${t.checked ? "tx-checked" : ""}">
       <td><input type="checkbox" class="rowChk" data-id="${t.id}" style="width:auto;" aria-label="Sélectionner ${escapeHtml(t.label)}" ${selectedIds.has(t.id)?"checked":""}></td>
       <td>${escapeHtml(t.date||"—")}</td>
-      <td>${escapeHtml(t.label)}${t.note ? `<span class="tx-note">${escapeHtml(t.note)}</span>` : ""}</td>
+      <td>${escapeHtml(t.label)}${t.note ? `<span class="tx-note">${escapeHtml(t.note)}</span>` : ""}${meta ? `<span class="tx-meta">${meta}</span>` : ""}</td>
       <td class="num amt ${t.amount>=0?'pos':'neg'}">${euro(t.amount)}</td>
       ${balances ? `<td class="num" style="color:var(--muted);">${bal === undefined ? "—" : euro(bal)}</td>` : ""}
       <td><button type="button" class="cat-cell-btn ${mainLabel?"":"empty"}" onclick="openCategoryPicker(event,'${t.id}')">${escapeHtml(mainLabel) || "Choisir…"}</button></td>
       <td><button type="button" class="cat-cell-btn ${subLabel?"":"empty"}" onclick="openCategoryPicker(event,'${t.id}')">${escapeHtml(subLabel) || "—"}</button></td>
       <td>${badge}</td>
       <td><input type="checkbox" class="pointChk" data-id="${t.id}" style="width:auto;" aria-label="Pointée : ${escapeHtml(t.label)}" ${t.checked?"checked":""} title="Pointée (vérifiée sur le relevé)"></td>
-      <td style="white-space:nowrap;"><button class="icon-btn" onclick="openTxEditor('${t.id}')" title="Modifier">✎</button><button class="icon-btn" onclick="removeTx('${t.id}')" title="Supprimer">✕</button></td></tr>`);
+      <td style="white-space:nowrap;"><button class="icon-btn" onclick="openTxEditor('${t.id}')" title="Modifier" aria-label="Modifier : ${escapeHtml(t.label)}">✎</button><button class="icon-btn" onclick="openTxComments('${t.id}')" title="${nComments ? nComments + " commentaire(s)" : "Commenter"}" aria-label="${nComments ? nComments + " commentaire(s) sur" : "Commenter"} : ${escapeHtml(t.label)}">💬${nComments ? `<span class="cnt">${nComments}</span>` : ""}</button>${canLink ? `<button class="icon-btn link-suggest" onclick="openLinkTx('${t.id}')" title="Rapprocher saisie et relevé bancaire" aria-label="Rapprocher : ${escapeHtml(t.label)}">🔗</button>` : ""}<button class="icon-btn" onclick="removeTx('${t.id}')" title="Supprimer" aria-label="Supprimer : ${escapeHtml(t.label)}">✕</button></td></tr>`);
   });
   document.getElementById("txTable").innerHTML = html.join("");
   document.getElementById("txEmpty").style.display = rows.length ? "none" : "block";
@@ -3852,12 +4435,14 @@ function openTxEditor(id){
   const cat = t && t.categoryId ? state.categories.find(c=>c.id===t.categoryId) : null;
   openModal({
     title: t ? "Modifier l'opération" : "Nouvelle opération",
+    message: t && t.bank ? `🔗 Rapprochée du relevé bancaire : « ${t.bank.label} »${t.bank.date ? " le " + t.bank.date : ""}.` : "",
     fields: [
       { id:"date", label:"Date", type:"date", value: t ? t.date : localDateStr() },
       { id:"label", label:"Libellé", value: t ? t.label : "", placeholder:"Ex : Boulangerie" },
       { id:"amount", label:"Montant (€) — négatif pour une dépense", value: t ? String(t.amount).replace(".", ",") : "", placeholder:"Ex : -12,50" },
       { id:"account", label:"Compte", type:"select", options: accountOptions(), value: t ? t.accountId : (currentAccountId() || (state.accounts[0]||{}).id) },
       { id:"category", label:"Catégorie (optionnel)", list:"categoryDatalist", value: cat ? categoryLabel(cat) : "", placeholder:"Tapez pour rechercher…" },
+      { id:"payment", label:"Moyen de paiement", type:"select", options: paymentOptions(true), value: t ? (t.paymentMethodId || "") : "" },
       { id:"note", label:"Note (optionnel)", value: t ? (t.note||"") : "", placeholder:"Ex : remboursé par Paul" },
       { id:"checked", label:"Opération pointée (vérifiée sur le relevé)", type:"checkbox", value: t ? t.checked : false },
       { id:"rule", label:"Créer une règle avec ce mot-clé (optionnel)", value:"", placeholder: t ? t.label.slice(0,30) : "Ex : BOULANGERIE" }
@@ -3883,9 +4468,11 @@ function openTxEditor(id){
         if(t.categoryId !== categoryId) t.source = categoryId ? "manual" : "";
         Object.assign(t, { date, label, amount, accountId: v.account, categoryId, checked: !!v.checked });
         if(note) t.note = note; else delete t.note;
+        if(v.payment) t.paymentMethodId = v.payment; else delete t.paymentMethodId;
       }else{
         const tx = { id: uid(), date, label, amount, accountId: v.account, categoryId, source: categoryId ? "manual" : "", checked: !!v.checked };
         if(note) tx.note = note;
+        if(v.payment) tx.paymentMethodId = v.payment;
         state.transactions.push(tx);
       }
       addRuleIfNew(v.rule, categoryId);
@@ -3901,6 +4488,218 @@ function bulkSetChecked(checked){
   state.transactions.forEach(t=>{ if(selectedIds.has(t.id)) t.checked = checked; });
   schedulePersist();
   renderAll();
+}
+
+/* ---------------- Commentaires sur une opération ----------------
+   Fil de commentaires daté (et signé si on le souhaite) : utile à plusieurs pour se demander
+   « c'est quoi ce prélèvement ? », noter un remboursement attendu, etc. */
+const COMMENT_AUTHOR_KEY = "familyBudget_commentAuthor";
+function formatCommentDate(ms){
+  const d = new Date(ms);
+  return isNaN(d) ? "" : d.toLocaleString("fr-FR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+}
+function openTxComments(id){
+  const t = state.transactions.find(x=>x.id===id);
+  if(!t) return;
+  const list = t.comments || [];
+  const html = `<p class="hint" style="margin:0 0 10px;">${escapeHtml(t.date || "")} · ${escapeHtml(t.label)} · <strong>${euro(t.amount)}</strong></p>` +
+    (list.length
+      ? `<ul class="comment-list">${list.map(c=>`<li>
+          <div class="meta"><span>${c.author ? "<strong>" + escapeHtml(c.author) + "</strong> · " : ""}${escapeHtml(formatCommentDate(c.at))}</span>
+            <button type="button" class="icon-btn" style="height:24px; min-width:24px;" onclick="deleteTxComment('${t.id}','${c.id}')" title="Supprimer" aria-label="Supprimer ce commentaire">✕</button></div>
+          <div class="text">${escapeHtml(c.text)}</div></li>`).join("")}</ul>`
+      : `<p class="hint" style="margin:0 0 10px;">Aucun commentaire pour l'instant.</p>`);
+  openModal({
+    title: "💬 Commentaires",
+    html,
+    fields: [
+      { id:"text", label:"Nouveau commentaire", type:"textarea", placeholder:"Ex : à rembourser par Paul — Ctrl+Entrée pour enregistrer" },
+      { id:"author", label:"Votre prénom (optionnel, mémorisé sur cet appareil)", value: lsGet(COMMENT_AUTHOR_KEY) || "" }
+    ],
+    confirmLabel: "Ajouter le commentaire",
+    cancelLabel: "Fermer",
+    onConfirm: (v)=>{
+      const text = (v.text || "").trim();
+      const author = (v.author || "").trim().slice(0, 40);
+      if(author) lsSet(COMMENT_AUTHOR_KEY, author); else lsDel(COMMENT_AUTHOR_KEY);
+      if(!text) return true; // rien à ajouter : simple fermeture
+      t.comments = (t.comments || []).concat([{ id: uid(), text: text.slice(0, 2000), at: Date.now(), author }]);
+      schedulePersist();
+      renderTransactions();
+      openTxComments(id); // rouvre le fil pour voir le commentaire ajouté
+      return false;
+    }
+  });
+}
+function deleteTxComment(txId, commentId){
+  const t = state.transactions.find(x=>x.id===txId);
+  if(!t || !t.comments) return;
+  t.comments = t.comments.filter(c=>c.id !== commentId);
+  if(!t.comments.length) delete t.comments;
+  // Pierre tombale : la fusion avec un autre appareil ne doit pas le faire revenir.
+  state.deleted["comment:" + commentId] = Date.now();
+  schedulePersist();
+  renderTransactions();
+  openTxComments(txId);
+}
+
+/* ---------------- Moyens de paiement ---------------- */
+function paymentOptions(withNone){
+  return (withNone ? [{ value:"", label:"— Non renseigné —" }] : [])
+    .concat((state.paymentMethods || []).map(m=>({ value:m.id, label:m.name })));
+}
+function renderPaymentMethods(){
+  const counts = {};
+  state.transactions.forEach(t=>{ if(t.paymentMethodId) counts[t.paymentMethodId] = (counts[t.paymentMethodId] || 0) + 1; });
+  const tbody = document.getElementById("paymentMethodTable");
+  if(tbody){
+    tbody.innerHTML = (state.paymentMethods || []).map(m=>`<tr>
+      <td><input type="text" value="${escapeHtml(m.name)}" aria-label="Nom du moyen de paiement" style="min-width:140px;" onchange="updatePaymentMethod('${m.id}','name',this.value)"></td>
+      <td><input type="text" value="${escapeHtml(m.keywords || "")}" aria-label="Mots-clés de ${escapeHtml(m.name)}" style="min-width:200px;" onchange="updatePaymentMethod('${m.id}','keywords',this.value)"></td>
+      <td class="num">${counts[m.id] || 0}</td>
+      <td><button class="icon-btn" onclick="removePaymentMethod('${m.id}')" title="Supprimer" aria-label="Supprimer ${escapeHtml(m.name)}">✕</button></td>
+    </tr>`).join("") || `<tr><td colspan="4" class="hint">Aucun moyen de paiement.</td></tr>`;
+  }
+  const opts = paymentOptions(false).map(o=>`<option value="${o.value}">${escapeHtml(o.label)}</option>`).join("");
+  const filter = document.getElementById("filterPayment");
+  if(filter){
+    const prev = filter.value;
+    filter.innerHTML = '<option value="">Tous</option><option value="__none__">Non renseigné</option>' + opts;
+    filter.value = (prev === "__none__" || (state.paymentMethods || []).some(m=>m.id===prev)) ? prev : "";
+  }
+  const bulk = document.getElementById("bulkPaymentSelect");
+  if(bulk){
+    const prev = bulk.value;
+    bulk.innerHTML = '<option value="">Moyen de paiement…</option><option value="__none__">— Aucun —</option>' + opts;
+    bulk.value = prev;
+  }
+}
+function addPaymentMethod(){
+  const nameEl = document.getElementById("newPaymentName"), kwEl = document.getElementById("newPaymentKeywords");
+  const name = nameEl.value.trim();
+  if(!name){ appAlert("Donnez un nom au moyen de paiement."); return; }
+  if(state.paymentMethods.some(m=>groupKey(m.name) === groupKey(name))){ appAlert("Ce moyen de paiement existe déjà."); return; }
+  state.paymentMethods.push({ id: uid(), name, keywords: kwEl.value.trim() });
+  nameEl.value = ""; kwEl.value = "";
+  schedulePersist();
+  renderPaymentMethods();
+}
+function updatePaymentMethod(id, field, value){
+  const m = state.paymentMethods.find(x=>x.id===id);
+  if(!m) return;
+  const v = String(value || "").trim();
+  if(field === "name" && !v){ renderPaymentMethods(); return; }
+  m[field] = v;
+  schedulePersist();
+  renderAll();
+}
+function removePaymentMethod(id){
+  const m = state.paymentMethods.find(x=>x.id===id);
+  if(!m) return;
+  const n = state.transactions.filter(t=>t.paymentMethodId===id).length;
+  appConfirm(`Supprimer « ${m.name} » ?` + (n ? ` ${n} opération(s) n'auront plus de moyen de paiement renseigné.` : ""), ()=>{
+    state.paymentMethods = state.paymentMethods.filter(x=>x.id!==id);
+    state.transactions.forEach(t=>{ if(t.paymentMethodId===id) delete t.paymentMethodId; });
+    schedulePersist();
+    renderAll();
+  }, { title:"Supprimer un moyen de paiement", confirmLabel:"Supprimer" });
+}
+function detectPaymentMethodsOnExisting(){
+  let n = 0;
+  state.transactions.forEach(t=>{
+    if(t.paymentMethodId) return;
+    const id = detectPaymentMethod(t.bank ? t.bank.label : t.label, state.paymentMethods);
+    if(id){ t.paymentMethodId = id; n++; }
+  });
+  if(n) schedulePersist();
+  renderAll();
+  appAlert(n ? `${n} opération(s) complétée(s) d'après leur libellé.` : "Aucune opération supplémentaire reconnue. Ajoutez des mots-clés aux moyens de paiement si besoin.");
+}
+function bulkAssignPayment(){
+  const v = document.getElementById("bulkPaymentSelect").value;
+  if(!v){ appAlert("Choisissez un moyen de paiement dans la liste."); return; }
+  state.transactions.forEach(t=>{
+    if(!selectedIds.has(t.id)) return;
+    if(v === "__none__") delete t.paymentMethodId; else t.paymentMethodId = v;
+  });
+  document.getElementById("bulkPaymentSelect").value = "";
+  schedulePersist();
+  renderAll();
+}
+
+/* ---------------- Rapprochement : saisie manuelle ↔ ligne du relevé importé ----------------
+   Une opération saisie à la main (chèque, achat noté sur le moment…) et la même opération
+   arrivée ensuite par le relevé bancaire ne font qu'une : on garde la saisie (son libellé, sa
+   catégorie, ses commentaires) et on lui attache le libellé et la date de la banque. */
+const LINK_MAX_DAYS = 60;
+function isManualUnlinked(t){ return !t.batchId && !t.bank; }
+function isImportedTx(t){ return !!t.batchId; }
+function amountKey(t){ return t.accountId + "|" + Math.round(t.amount * 100); }
+/* Opérations (id) pour lesquelles un rapprochement est possible : même compte, même montant,
+   de l'autre nature (saisie ↔ importée), à moins de LINK_MAX_DAYS jours. */
+function linkCandidatesIndex(){
+  const manual = new Map(), imported = new Map();
+  state.transactions.forEach(t=>{
+    if(!t.date) return;
+    const bucket = isManualUnlinked(t) ? manual : (isImportedTx(t) ? imported : null);
+    if(!bucket) return;
+    const k = amountKey(t);
+    (bucket.get(k) || bucket.set(k, []).get(k)).push(t);
+  });
+  const ids = new Set();
+  manual.forEach((list, k)=>{
+    const others = imported.get(k);
+    if(!others) return;
+    list.forEach(m=>others.forEach(i=>{
+      if(daysBetween(m.date, i.date) <= LINK_MAX_DAYS){ ids.add(m.id); ids.add(i.id); }
+    }));
+  });
+  return ids;
+}
+function linkCandidatesFor(t){
+  const wantManual = isImportedTx(t);
+  return state.transactions
+    .filter(x=> x.id !== t.id && x.date && amountKey(x) === amountKey(t)
+      && (wantManual ? isManualUnlinked(x) : isImportedTx(x))
+      && daysBetween(x.date, t.date) <= LINK_MAX_DAYS)
+    .sort((a,b)=> daysBetween(a.date, t.date) - daysBetween(b.date, t.date));
+}
+/* Fusionne une saisie manuelle et une opération importée : la saisie est conservée. */
+function linkManualWithImported(manual, imported){
+  manual.bank = { label: imported.label, date: imported.date, batchId: imported.batchId };
+  manual.date = imported.date; // la date de la banque fait foi pour le solde et le pointage
+  if(!manual.categoryId && imported.categoryId){ manual.categoryId = imported.categoryId; manual.source = imported.source; }
+  if(!manual.paymentMethodId && imported.paymentMethodId) manual.paymentMethodId = imported.paymentMethodId;
+  if(!manual.note && imported.note) manual.note = imported.note;
+  if(imported.comments) manual.comments = (manual.comments || []).concat(imported.comments);
+  manual.checked = manual.checked || imported.checked;
+  state.transactions = state.transactions.filter(x=>x.id !== imported.id);
+  selectedIds.delete(imported.id);
+}
+function openLinkTx(id){
+  const t = state.transactions.find(x=>x.id===id);
+  if(!t) return;
+  const candidates = linkCandidatesFor(t);
+  if(!candidates.length){ appAlert("Aucune opération correspondante (même compte, même montant, à moins de " + LINK_MAX_DAYS + " jours)."); return; }
+  const fromImported = isImportedTx(t);
+  const describe = (x)=> `${x.date} · ${x.label}${x.note ? " (" + x.note + ")" : ""}`;
+  openModal({
+    title: "🔗 Rapprocher saisie et relevé",
+    message: fromImported
+      ? `Ligne du relevé : ${describe(t)} — ${euro(t.amount)}.\n\nÀ quelle opération saisie à la main correspond-elle ? La saisie est conservée (libellé, catégorie, commentaires) et reçoit le libellé et la date de la banque ; la ligne importée en double disparaît.`
+      : `Votre saisie : ${describe(t)} — ${euro(t.amount)}.\n\nÀ quelle ligne du relevé bancaire correspond-elle ? Votre saisie est conservée (libellé, catégorie, commentaires) et reçoit le libellé et la date de la banque ; la ligne importée en double disparaît.`,
+    fields: [{ id:"pick", type:"radio", label: fromImported ? "Saisies possibles" : "Lignes du relevé possibles",
+      value: candidates[0].id, options: candidates.slice(0, 12).map(x=>({ value:x.id, label: describe(x) + ` (${Math.round(daysBetween(x.date, t.date))} j d'écart)` })) }],
+    confirmLabel: "Rapprocher",
+    onConfirm: (v)=>{
+      const other = state.transactions.find(x=>x.id===v.pick);
+      if(!other){ showModalError("Choisissez une opération."); return false; }
+      if(fromImported) linkManualWithImported(other, t); else linkManualWithImported(t, other);
+      schedulePersist();
+      renderAll();
+      return true;
+    }
+  });
 }
 
 /* ---------------- Rapprochement bancaire ---------------- */
@@ -4306,25 +5105,37 @@ function isDashboardVisible(){
   return !!(section && section.classList.contains("active"));
 }
 
-/* Agrège en UNE passe les opérations par période : revenus, dépenses et net par regroupement de
-   catégorie (hors virements internes). Évite de refiltrer toutes les opérations pour chaque
-   période et chaque catégorie, ce qui devenait lent avec plusieurs milliers d'opérations. */
-function aggregateByPeriod(txs, periods, freq){
+/* Agrège en UNE passe les opérations par période : revenus, dépenses et net par poste (catégorie
+   principale ou sous-catégorie selon `level`, hors virements internes). Évite de refiltrer toutes
+   les opérations pour chaque période et chaque catégorie, ce qui devenait lent avec plusieurs
+   milliers d'opérations. Les postes sont repérés par la valeur du filtre « Catégorie » du journal
+   (« g:Nom », identifiant de sous-catégorie, ou « __none__ ») pour pouvoir y renvoyer d'un clic. */
+function aggregateByPeriod(txs, periods, freq, level){
   const idx = new Map(periods.map((p,i)=>[p,i]));
   const n = periods.length;
   const catMap = categoryMap();
   const inData = new Array(n).fill(0), outData = new Array(n).fill(0);
-  const netByBucket = {};
+  const netByBucket = {}, bucketLabels = {};
+  const groupBucket = new Map(); // groupKey → clé du premier libellé rencontré
   txs.forEach(t=>{
     const i = idx.get(periodKey(t.date, freq));
     if(i === undefined) return;
     const cat = t.categoryId ? catMap.get(t.categoryId) : null;
     if(cat && cat.transfer) return;
     if(t.amount > 0) inData[i] += t.amount; else outData[i] -= t.amount;
-    const label = categoryBucketLabel(cat);
-    (netByBucket[label] = netByBucket[label] || new Array(n).fill(0))[i] += t.amount;
+    let key, label;
+    if(!cat){ key = "__none__"; label = "Non catégorisé"; }
+    else if(level === "sub"){ key = cat.id; label = categoryLabel(cat); }
+    else{
+      const name = String(cat.group || cat.name).trim();
+      const gk = groupKey(name);
+      if(!groupBucket.has(gk)) groupBucket.set(gk, "g:" + name);
+      key = groupBucket.get(gk); label = key.slice(2);
+    }
+    bucketLabels[key] = label;
+    (netByBucket[key] = netByBucket[key] || new Array(n).fill(0))[i] += t.amount;
   });
-  return { inData, outData, netByBucket };
+  return { inData, outData, netByBucket, bucketLabels };
 }
 
 function showChartLibError(ctx){
@@ -4361,6 +5172,49 @@ function computeRunningBalanceForPeriods(displayPeriods, freq){
   return displayPeriods.map(p=> runningByPeriod.get(p));
 }
 
+function chartConfig(){ return Object.assign(defaultChartConfig(), state.chartConfig || {}); }
+function applyChartConfigControls(){
+  const cfg = chartConfig();
+  const set = (id, v)=>{ const el = document.getElementById(id); if(!el) return; if(el.type === "checkbox") el.checked = !!v; else el.value = String(v); };
+  set("cc_evolType", cfg.evolType); set("cc_showIn", cfg.showIn); set("cc_showOut", cfg.showOut);
+  set("cc_showNet", cfg.showNet); set("cc_showBalance", cfg.showBalance);
+  set("cc_catType", cfg.catType); set("cc_catFlow", cfg.catFlow); set("cc_catLevel", cfg.catLevel); set("cc_catTopN", cfg.catTopN);
+}
+function updateChartConfig(){
+  const get = (id)=>{ const el = document.getElementById(id); return el.type === "checkbox" ? el.checked : el.value; };
+  state.chartConfig = {
+    evolType: get("cc_evolType") === "bar" ? "bar" : "line",
+    showIn: get("cc_showIn"), showOut: get("cc_showOut"), showNet: get("cc_showNet"), showBalance: get("cc_showBalance"),
+    catType: ["line","bar","doughnut"].includes(get("cc_catType")) ? get("cc_catType") : "line",
+    catFlow: get("cc_catFlow") === "in" ? "in" : "out",
+    catLevel: get("cc_catLevel") === "sub" ? "sub" : "group",
+    catTopN: Math.min(Math.max(parseInt(get("cc_catTopN"), 10) || 6, 1), 12)
+  };
+  schedulePersist();
+  renderDashboard();
+}
+
+/* Premier et dernier jour d'une période du graphique (mois, semaine ou quinzaine). */
+function periodRange(key, freq){
+  if(freq === "month" || !freq) return { from: key + "-01", to: lastDayOfMonth(key) };
+  const start = Date.parse(key + "T00:00:00Z");
+  const end = new Date(start + ((freq === "week" ? 7 : 14) - 1) * 86400000).toISOString().slice(0,10);
+  return { from: key, to: end };
+}
+/* Clic sur un point, une barre ou une part → journal filtré sur les opérations concernées. */
+function chartClickHandler(resolve){
+  return (evt, elements, chart)=>{
+    if(!elements || !elements.length) return;
+    const { datasetIndex, index } = elements[0];
+    const target = resolve(chart.data.datasets[datasetIndex], index);
+    if(target) showTransactionsFiltered(target);
+  };
+}
+function chartHoverCursor(evt, elements){
+  const c = evt && evt.native && evt.native.target;
+  if(c) c.style.cursor = elements && elements.length ? "pointer" : "default";
+}
+
 function renderMonthlyChart(periods, agg, freq){
   if(!isDashboardVisible()) return; // un canevas caché (display:none) se dimensionne à 0 et reste vide
   const ctx = document.getElementById("chartMonthly");
@@ -4368,28 +5222,36 @@ function renderMonthlyChart(periods, agg, freq){
   if(chartMonthlyInstance){ chartMonthlyInstance.destroy(); chartMonthlyInstance = null; }
   if(typeof Chart === "undefined"){ showChartLibError(ctx); return; }
   if(periods.length === 0) return;
+  const cfg = chartConfig();
+  const isBar = cfg.evolType === "bar";
   const { inData, outData } = agg;
-  const balanceData = computeRunningBalanceForPeriods(periods, freq);
   const labels = periods.map(p=>periodLabel(p,freq));
+  const datasets = [];
+  const fill = (c)=> withAlpha(c, isBar ? .75 : .15);
+  if(cfg.showIn) datasets.push({ key:"in", label: "Revenus", data: inData, borderColor: themeColor("green"), backgroundColor: fill(themeColor("green")), tension: .25 });
+  if(cfg.showOut) datasets.push({ key:"out", label: "Dépenses", data: outData, borderColor: themeColor("terracotta"), backgroundColor: fill(themeColor("terracotta")), tension: .25 });
+  if(cfg.showNet) datasets.push({ key:"net", label: "Épargne de la période", data: inData.map((v,i)=>v - outData[i]), borderColor: themeColor("blue"), backgroundColor: fill(themeColor("blue")), tension: .25 });
+  // Le solde cumulé reste une courbe, même en mode barres (ordre de grandeur différent).
+  if(cfg.showBalance) datasets.push({ key:"balance", type:"line", label: "Solde cumulé", data: computeRunningBalanceForPeriods(periods, freq), borderColor: themeColor("gold"), backgroundColor: withAlpha(themeColor("gold"), .15), borderDash: [5,4], tension: .25 });
+  if(!datasets.length) return;
   applyChartTheme();
   chartMonthlyInstance = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels,
-      datasets: [
-        { label: "Revenus", data: inData, borderColor: themeColor("green"), backgroundColor: withAlpha(themeColor("green"), .15), tension: .25 },
-        { label: "Dépenses", data: outData, borderColor: themeColor("terracotta"), backgroundColor: withAlpha(themeColor("terracotta"), .15), tension: .25 },
-        { label: "Solde cumulé", data: balanceData, borderColor: themeColor("gold"), borderDash: [5,4], tension: .25 }
-      ]
-    },
+    type: isBar ? "bar" : "line",
+    data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: { mode: "nearest", axis: "x", intersect: false },
       plugins: { legend: { position: "bottom" } },
       scales: {
         x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 0, maxTicksLimit: 16 } },
         y: { ticks: { callback: (v)=>euro(v) } }
-      }
+      },
+      onHover: chartHoverCursor,
+      onClick: chartClickHandler((ds, i)=>{
+        const r = periodRange(periods[i], freq);
+        return { from: r.from, to: r.to, sign: ds.key === "in" || ds.key === "out" ? ds.key : "" };
+      })
     }
   });
 }
@@ -4397,53 +5259,86 @@ function renderMonthlyChart(periods, agg, freq){
 function renderCategoryTrendChart(periods, agg, freq){
   if(!isDashboardVisible()) return;
   const ctx = document.getElementById("chartByCategory");
-  // Net par regroupement de catégorie sur la fenêtre affichée (les remboursements s'y soustraient).
-  const { netByBucket } = agg;
+  const cfg = chartConfig();
+  const flowIn = cfg.catFlow === "in";
+  // Net par poste sur la fenêtre affichée (les remboursements s'y soustraient aux dépenses).
+  const { netByBucket, bucketLabels } = agg;
+  const flowOf = (net)=> Math.max(flowIn ? net : -net, 0);
   const totals = {};
-  Object.keys(netByBucket).forEach(label=>{ totals[label] = -netByBucket[label].reduce((s,v)=>s+v,0); });
-  const sortedLabels = Object.keys(totals).filter(l=>totals[l]>0.01).sort((a,b)=>totals[b]-totals[a]);
-  const TOP_N = 6;
-  const topLabels = sortedLabels.slice(0, TOP_N);
-  const otherLabels = sortedLabels.slice(TOP_N);
-  const spendOf = (net)=> Math.max(-net, 0);
+  Object.keys(netByBucket).forEach(k=>{ totals[k] = flowOf(netByBucket[k].reduce((s,v)=>s+v,0)); });
+  const sorted = Object.keys(totals).filter(k=>totals[k]>0.01).sort((a,b)=>totals[b]-totals[a]);
+  const topN = cfg.catTopN || 6;
+  const top = sorted.slice(0, topN);
+  const others = sorted.slice(topN);
 
   const palette = chartPalette();
-  const datasets = topLabels.map((label,i)=>({
-    label,
-    data: netByBucket[label].map(spendOf),
-    borderColor: palette[i % palette.length],
-    backgroundColor: withAlpha(palette[i % palette.length], .13),
-    tension: .25
-  }));
-  if(otherLabels.length){
-    datasets.push({
-      label: "Autres",
-      data: periods.map((p,i)=> spendOf(otherLabels.reduce((s,l)=>s+netByBucket[l][i],0))),
-      borderColor: themeColor("muted"), backgroundColor: withAlpha(themeColor("muted"), .13), tension: .25, borderDash: [4,3]
-    });
-  }
-
-  document.getElementById("chartCatSub").textContent = topLabels.length
-    ? `Les ${topLabels.length} principaux postes de dépense${otherLabels.length ? " (le reste est regroupé sous « Autres »)" : ""}.`
-    : "Pas encore assez de dépenses catégorisées pour ce graphique.";
+  const isDoughnut = cfg.catType === "doughnut", isBar = cfg.catType === "bar";
+  const flowWordPlural = flowIn ? "revenus" : "dépenses";
+  document.getElementById("chartCatTitle").textContent = flowIn ? "Revenus par catégorie" : "Habitudes de dépense par catégorie";
+  document.getElementById("chartCatSub").textContent = top.length
+    ? (isDoughnut ? `Répartition des ${flowWordPlural} sur les périodes affichées : ` : `Évolution des ${flowWordPlural} : `) +
+      `les ${top.length} principaux postes${others.length ? " (le reste est regroupé sous « Autres »)" : ""}.`
+    : `Pas encore assez de ${flowWordPlural} catégorisés pour ce graphique.`;
 
   ctx.parentElement.querySelectorAll(".chart-error").forEach(el=>el.remove());
   if(chartByCategoryInstance){ chartByCategoryInstance.destroy(); chartByCategoryInstance = null; }
   if(typeof Chart === "undefined"){ showChartLibError(ctx); return; }
-  if(topLabels.length === 0 || periods.length === 0) return;
-  const labels = periods.map(p=>periodLabel(p,freq));
+  if(top.length === 0 || periods.length === 0) return;
+  const whole = { from: periodRange(periods[0], freq).from, to: periodRange(periods[periods.length-1], freq).to };
+  const sign = flowIn ? "in" : "out";
+  const targetFor = (bucket, range)=> ({ category: bucket === "__others__" ? "" : bucket, from: range.from, to: range.to, sign });
   applyChartTheme();
+
+  if(isDoughnut){
+    const keys = top.concat(others.length ? ["__others__"] : []);
+    chartByCategoryInstance = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: keys.map(k=> k === "__others__" ? "Autres" : bucketLabels[k]),
+        datasets: [{ buckets: keys, data: keys.map(k=> k === "__others__" ? others.reduce((s,o)=>s+totals[o],0) : totals[k]),
+          backgroundColor: keys.map((k,i)=> k === "__others__" ? themeColor("muted") : palette[i % palette.length]),
+          borderColor: themeColor("surface"), borderWidth: 2 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: "right" }, tooltip: { callbacks: { label: (c)=> ` ${c.label} : ${euro(c.parsed)}` } } },
+        onHover: chartHoverCursor,
+        onClick: chartClickHandler((ds, i)=> targetFor(ds.buckets[i], whole))
+      }
+    });
+    return;
+  }
+
+  const datasets = top.map((k,i)=>({
+    bucket: k,
+    label: bucketLabels[k],
+    data: netByBucket[k].map(flowOf),
+    borderColor: palette[i % palette.length],
+    backgroundColor: withAlpha(palette[i % palette.length], isBar ? .8 : .13),
+    tension: .25
+  }));
+  if(others.length){
+    datasets.push({
+      bucket: "__others__",
+      label: "Autres",
+      data: periods.map((p,i)=> flowOf(others.reduce((s,k)=>s+netByBucket[k][i],0))),
+      borderColor: themeColor("muted"), backgroundColor: withAlpha(themeColor("muted"), isBar ? .6 : .13), tension: .25, borderDash: isBar ? [] : [4,3]
+    });
+  }
   chartByCategoryInstance = new Chart(ctx, {
-    type: "line",
-    data: { labels, datasets },
+    type: isBar ? "bar" : "line",
+    data: { labels: periods.map(p=>periodLabel(p,freq)), datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: isBar ? { mode: "nearest", intersect: true } : { mode: "nearest", axis: "xy", intersect: false },
       plugins: { legend: { position: "bottom" } },
       scales: {
-        x: { ticks: { autoSkip: true, maxRotation: 45, minRotation: 0, maxTicksLimit: 16 } },
-        y: { ticks: { callback: (v)=>euro(v) } }
-      }
+        x: { stacked: isBar, ticks: { autoSkip: true, maxRotation: 45, minRotation: 0, maxTicksLimit: 16 } },
+        y: { stacked: isBar, ticks: { callback: (v)=>euro(v) } }
+      },
+      onHover: chartHoverCursor,
+      onClick: chartClickHandler((ds, i)=> targetFor(ds.bucket, periodRange(periods[i], freq)))
     }
   });
 }
@@ -4482,7 +5377,7 @@ function renderDashboard(){
   document.getElementById("monthTable").innerHTML = months.map(m=>{
     const o = byMonth[m] || { in:0, out:0 };
     const net = o.in + o.out;
-    return `<tr><td>${escapeHtml(m)}</td><td class="num amt pos">${euro(o.in)}</td><td class="num amt neg">${euro(Math.abs(o.out))}</td>
+    return `<tr><td>${gotoLink(monthLabelFr(m), { type:"all", value:"" }, m)}</td><td class="num amt pos">${gotoLink(euro(o.in), { type:"in", value:"" }, m)}</td><td class="num amt neg">${gotoLink(euro(Math.abs(o.out)), { type:"out", value:"" }, m)}</td>
       <td class="num" style="font-weight:600; color:${net>=0?'var(--green)':'var(--terracotta)'}">${(net>=0?"+":"")+euro(net)}</td></tr>`;
   }).join("");
 
@@ -4494,7 +5389,8 @@ function renderDashboard(){
   let chartPeriods = Array.from(new Set(scoped.map(t=>periodKey(t.date, chartFreq)).filter(Boolean))).sort();
   if(chartAmplitude > 0) chartPeriods = chartPeriods.slice(-chartAmplitude);
   if(isDashboardVisible()){
-    const agg = aggregateByPeriod(scoped, chartPeriods, chartFreq);
+    applyChartConfigControls();
+    const agg = aggregateByPeriod(scoped, chartPeriods, chartFreq, chartConfig().catLevel);
     renderMonthlyChart(chartPeriods, agg, chartFreq);
     renderCategoryTrendChart(chartPeriods, agg, chartFreq);
   }
@@ -4531,6 +5427,147 @@ function updateDashboardConfig(){
   state.dashboardConfig = cfg;
   schedulePersist();
   applyDashboardConfig();
+}
+
+/* ---------------- Tutoriel Google Drive : code du script à copier ---------------- */
+function fillAppsScriptCode(){
+  const pre = document.getElementById("appsScriptCode");
+  const src = document.getElementById("appsScriptSource");
+  if(pre && src && !pre.textContent) pre.textContent = src.textContent.trim() + "\n";
+}
+async function copyAppsScriptCode(btn){
+  fillAppsScriptCode();
+  const code = document.getElementById("appsScriptCode").textContent;
+  let ok = false;
+  try{ await navigator.clipboard.writeText(code); ok = true; }catch(e){
+    // Presse-papiers indisponible (ancien navigateur, cadre sécurisé) : on sélectionne le code.
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("appsScriptCode"));
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    try{ ok = document.execCommand("copy"); }catch(e2){ ok = false; }
+  }
+  const old = btn.textContent;
+  btn.textContent = ok ? "✓ Code copié" : "Sélectionné : faites Ctrl+C";
+  setTimeout(()=>{ btn.textContent = old; }, 2500);
+}
+
+/* ---------------- Sauvegarde automatique dans un dossier (OneDrive, Dropbox…) ----------------
+   API « File System Access » (Chrome, Edge sur ordinateur) : l'utilisateur choisit un fichier dans
+   son dossier OneDrive ; on y réécrit la sauvegarde après chaque modification. Le « handle » du
+   fichier est gardé dans IndexedDB ; après un redémarrage du navigateur, il faut souvent
+   redonner l'autorisation d'un clic (exigence de sécurité du navigateur). */
+const FOLDER_DB = "familyBudget_files", FOLDER_STORE = "handles", FOLDER_KEY = "backupFile";
+let folderHandle = null;
+let folderActive = false;
+let folderTimer = null;
+let folderLastWrite = 0;
+
+function folderBackupSupported(){ return typeof window.showSaveFilePicker === "function"; }
+function folderDb(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(FOLDER_DB, 1);
+    req.onupgradeneeded = ()=> req.result.createObjectStore(FOLDER_STORE);
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+async function folderDbOp(mode, fn){
+  const db = await folderDb();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(FOLDER_STORE, mode);
+    const req = fn(tx.objectStore(FOLDER_STORE));
+    tx.oncomplete = ()=>{ db.close(); resolve(req && req.result); };
+    tx.onerror = ()=>{ db.close(); reject(tx.error); };
+  });
+}
+function renderFolderBackupUi(text){
+  const status = document.getElementById("folderBackupStatus");
+  if(!status) return;
+  const show = (id, on)=>{ const el = document.getElementById(id); if(el) el.style.display = on ? "" : "none"; };
+  if(!folderBackupSupported()){
+    status.textContent = "Ce navigateur ne permet pas d'écrire dans un dossier de l'ordinateur (seuls Chrome et Edge sur ordinateur le font). Utilisez « Exporter la sauvegarde » ci-dessous et enregistrez le fichier dans votre dossier OneDrive.";
+    show("folderPickBtn", false); show("folderResumeBtn", false); show("folderRestoreBtn", false); show("folderStopBtn", false);
+    return;
+  }
+  show("folderPickBtn", true);
+  show("folderResumeBtn", !!folderHandle && !folderActive);
+  show("folderRestoreBtn", !!folderHandle);
+  show("folderStopBtn", !!folderHandle);
+  if(text){ status.textContent = text; return; }
+  if(!folderHandle) status.textContent = "Non configurée.";
+  else if(!folderActive) status.textContent = `En pause : cliquez sur « ▶ Réactiver » pour autoriser à nouveau l'écriture dans « ${folderHandle.name} ».`;
+  else status.textContent = `Active : « ${folderHandle.name} »` + (folderLastWrite ? ` — dernière écriture à ${new Date(folderLastWrite).toLocaleTimeString("fr-FR")}.` : ".");
+}
+async function writeFolderBackup(){
+  if(!folderHandle || !folderActive) return;
+  try{
+    const w = await folderHandle.createWritable();
+    await w.write(JSON.stringify(serializeState(), null, 2));
+    await w.close();
+    folderLastWrite = Date.now();
+    renderFolderBackupUi();
+  }catch(e){
+    console.error(e);
+    folderActive = false;
+    renderFolderBackupUi("⚠️ Écriture impossible (" + (e && e.message ? e.message : "erreur") + "). Cliquez sur « ▶ Réactiver » ou choisissez un autre fichier.");
+  }
+}
+function scheduleFolderBackup(){
+  if(!folderHandle || !folderActive) return;
+  clearTimeout(folderTimer);
+  folderTimer = setTimeout(writeFolderBackup, 2000);
+}
+async function pickFolderBackupFile(){
+  if(!folderBackupSupported()){ renderFolderBackupUi(); return; }
+  try{
+    const handle = await window.showSaveFilePicker({
+      suggestedName: "comptes-famille.json",
+      types: [{ description: "Sauvegarde JSON", accept: { "application/json": [".json"] } }]
+    });
+    folderHandle = handle;
+    folderActive = true;
+    try{ await folderDbOp("readwrite", st=>st.put(handle, FOLDER_KEY)); }catch(e){ console.error(e); }
+    await writeFolderBackup();
+  }catch(e){
+    if(e && e.name === "AbortError") return; // l'utilisateur a fermé la fenêtre
+    console.error(e);
+    renderFolderBackupUi("⚠️ " + (e && e.message ? e.message : "Impossible de choisir ce fichier."));
+  }
+}
+async function resumeFolderBackup(){
+  if(!folderHandle) return;
+  try{
+    const perm = await folderHandle.requestPermission({ mode: "readwrite" });
+    folderActive = perm === "granted";
+    if(folderActive) await writeFolderBackup(); else renderFolderBackupUi("Autorisation refusée par le navigateur.");
+  }catch(e){ console.error(e); renderFolderBackupUi("⚠️ " + (e && e.message ? e.message : "Autorisation impossible.")); }
+}
+async function restoreFromFolderBackup(){
+  if(!folderHandle) return;
+  try{
+    if(await folderHandle.queryPermission({ mode: "read" }) !== "granted" &&
+       await folderHandle.requestPermission({ mode: "read" }) !== "granted") return;
+    const file = await folderHandle.getFile();
+    appConfirm(`Restaurer les données depuis « ${file.name} » (enregistré le ${new Date(file.lastModified).toLocaleString("fr-FR")}) ? Les opérations du fichier sont fusionnées avec celles de cet appareil.`,
+      ()=> importBackup(file), { title: "Restaurer depuis le dossier", confirmLabel: "Restaurer" });
+  }catch(e){ console.error(e); appAlert("Lecture impossible : " + (e && e.message ? e.message : "erreur inconnue")); }
+}
+async function stopFolderBackup(){
+  clearTimeout(folderTimer);
+  folderHandle = null; folderActive = false; folderLastWrite = 0;
+  try{ await folderDbOp("readwrite", st=>st.delete(FOLDER_KEY)); }catch(e){ console.error(e); }
+  renderFolderBackupUi("Arrêtée. Le fichier déjà écrit reste dans votre dossier.");
+}
+async function initFolderBackup(){
+  renderFolderBackupUi();
+  if(!folderBackupSupported() || typeof indexedDB === "undefined") return;
+  try{
+    const handle = await folderDbOp("readonly", st=>st.get(FOLDER_KEY));
+    if(!handle) return;
+    folderHandle = handle;
+    folderActive = (await handle.queryPermission({ mode: "readwrite" })) === "granted";
+    renderFolderBackupUi();
+  }catch(e){ console.error(e); }
 }
 
 /* ---------------- Export / Import sauvegarde ---------------- */
@@ -4572,7 +5609,8 @@ function resetTransactionsData(){
     ()=>{
       closeCategoryPicker();
       selectedIds.clear();
-      parsedRows = null; parsedHeaders = null; currentImportFileName = ""; duplicateMatches = [];
+      parsedRows = null; parsedHeaders = null; currentImportFileName = ""; duplicateMatches = []; reconcileMatches = [];
+      document.getElementById("reconcileImportBox").style.display = "none";
       document.getElementById("mappingBox").style.display = "none";
       document.getElementById("duplicatesBox").style.display = "none";
       document.getElementById("missingBox").style.display = "none";
@@ -4626,7 +5664,19 @@ function importBackup(file){
       if(!parsed || typeof parsed !== "object") throw new Error("format invalide");
       const arr = (v, fallback)=> Array.isArray(v) ? v : fallback;
       if(typeof parsed.famTitle === "string" && parsed.famTitle.trim()) state.famTitle = parsed.famTitle;
-      state.categories = arr(parsed.categories, state.categories);
+      // Catégories : réunies (par identifiant) et non remplacées — sinon les opérations déjà
+      // présentes ici, classées dans une catégorie absente de la sauvegarde, perdaient leur catégorie.
+      if(Array.isArray(parsed.categories)){
+        const byId = new Map(state.categories.map(c=>[c.id, c]));
+        parsed.categories.forEach(c=>{ if(c && typeof c === "object") byId.set(c.id, c); });
+        state.categories = Array.from(byId.values());
+      }
+      if(Array.isArray(parsed.paymentMethods)){
+        const byId = new Map((state.paymentMethods || []).map(m=>[m.id, m]));
+        parsed.paymentMethods.forEach(m=>{ if(m && typeof m === "object") byId.set(m.id, m); });
+        state.paymentMethods = Array.from(byId.values());
+      }
+      if(parsed.chartConfig && typeof parsed.chartConfig === "object") state.chartConfig = parsed.chartConfig;
       state.rules = arr(parsed.rules, state.rules);
       state.imports = arr(parsed.imports, state.imports);
       if(Array.isArray(parsed.accounts) && parsed.accounts.length) state.accounts = parsed.accounts;
@@ -4643,6 +5693,7 @@ function importBackup(file){
         if(idx>=0) state.transactions[idx] = t; else state.transactions.push(t);
       });
       migrateState(state);
+      dedupeAfterMerge(state);
       renderAccountUi();
       schedulePersist();
       famTitleInput.value = state.famTitle;
@@ -4665,13 +5716,16 @@ function exportCsv(){
   const catMap = categoryMap();
   const accNames = new Map(state.accounts.map(a=>[a.id, a.name]));
   const SOURCES = { rule: "Règle", import: "Fichier", manual: "Manuel" };
-  const header = ["Date","Compte","Libellé","Montant","Catégorie principale","Sous-catégorie","Virement interne","Origine"].join(";");
+  const payNames = new Map((state.paymentMethods || []).map(m=>[m.id, m.name]));
+  const header = ["Date","Compte","Libellé","Montant","Catégorie principale","Sous-catégorie","Virement interne","Origine","Moyen de paiement","Libellé bancaire","Note","Commentaires"].join(";");
   const lines = [...rows].sort((a,b)=>(a.date||"").localeCompare(b.date||"")).map(t=>{
     const cat = t.categoryId ? catMap.get(t.categoryId) : null;
     return [
       t.date, accNames.get(t.accountId) || "", t.label, t.amount.toFixed(2).replace(".",","),
       cat ? (cat.group || cat.name) : "Non catégorisé", cat && cat.group ? cat.name : "",
-      cat && cat.transfer ? "oui" : "", SOURCES[t.source] || ""
+      cat && cat.transfer ? "oui" : "", SOURCES[t.source] || "",
+      payNames.get(t.paymentMethodId) || "", t.bank ? t.bank.label : "", t.note || "",
+      (t.comments || []).map(c=>(c.author ? c.author + " : " : "") + c.text).join(" | ")
     ].map(csvCell).join(";");
   });
   const accId = currentAccountId();
@@ -4705,8 +5759,11 @@ function removeImportBatch(batchId){
   const batch = state.imports.find(b=>b.id===batchId);
   if(!batch) return;
   appConfirm(
-    `Supprimer les ${batch.count} opération(s) de l'import « ${batch.fileName||"sans nom"} » ? Cette action est irréversible.`,
+    `Supprimer les ${batch.count} opération(s) de l'import « ${batch.fileName||"sans nom"} » ?` +
+      (batch.linked ? ` Les ${batch.linked} opération(s) saisie(s) à la main qui avaient été rapprochées de ce relevé sont conservées (le lien est retiré).` : "") +
+      " Cette action est irréversible (sauf avec ↶ Annuler juste après).",
     ()=>{
+      state.transactions.forEach(t=>{ if(t.bank && t.bank.batchId === batchId) delete t.bank; });
       const toDelete = state.transactions.filter(t=>t.batchId===batchId).map(t=>t.id);
       state.transactions = state.transactions.filter(t=>t.batchId!==batchId);
       state.imports = state.imports.filter(b=>b.id!==batchId);
@@ -4727,6 +5784,7 @@ function renderAll(){
   renderAccountUi();
   renderCategories();
   renderRules();
+  renderPaymentMethods();
   renderTransactions();
   if(isViewActive("dashboard")) renderDashboard();
   renderImportBatches();
@@ -4748,6 +5806,7 @@ applyAppearance();
 setTxFiltersOpen(lsGet(TX_FILTERS_OPEN_KEY) === "1");
 linkLabelsToFields(document);
 initStorage();
+initFolderBackup();
 
 // Restaure l'onglet actif de la dernière visite.
 try{
