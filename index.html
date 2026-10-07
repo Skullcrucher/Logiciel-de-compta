@@ -166,32 +166,42 @@
   /* ================= Cartes, formulaires ================= */
   .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; margin-bottom:16px; box-shadow:var(--shadow); }
   .card.danger{ border-color:color-mix(in srgb, var(--terracotta) 55%, var(--border)); }
-  .tx-sticky-bar{ position:sticky; top:66px; z-index:60; background:var(--surface); padding-top:10px; padding-bottom:6px; }
-  /* Entête du journal, compacte : titre + 3 boutons sur une ligne, filtres repliables en grille serrée. */
-  .tx-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
-  .tx-head h2{ margin:0 !important; font-size:15px !important; }
-  .tx-head-actions{ display:flex; gap:6px; align-items:center; }
-  .tx-head-actions button.btn.small{ min-height:34px; padding:0 12px; }
+  .tx-sticky-bar{ position:sticky; top:66px; z-index:60; background:var(--surface); padding-top:8px; padding-bottom:4px; }
+  /* Entête du journal, condensée : titre, filtre actif et boutons sur UNE ligne ; filtres repliables
+     sans étiquettes au-dessus (premières options et textes d'aide explicites, étiquettes pour lecteurs d'écran). */
+  .tx-head{ display:flex; align-items:center; gap:8px; margin-bottom:4px; min-height:32px; }
+  .tx-head h2{ margin:0 !important; font-size:15px !important; flex:0 0 auto; }
+  .tx-head .filter-chip{ flex:1 1 auto; min-width:0; margin:0; }
+  .tx-head-actions{ display:flex; gap:4px; align-items:center; margin-left:auto; flex:0 0 auto; }
+  .tx-head-actions button.btn.small{ min-height:32px; padding:0 10px; }
   .tx-menu{ position:relative; }
-  #txMoreBtn{ font-size:18px; line-height:1; padding:0 10px; }
+  #txMoreBtn{ font-size:18px; line-height:1; padding:0 9px; }
   .tx-menu-panel[hidden]{ display:none; }
   .tx-menu-panel{ position:absolute; right:0; top:calc(100% + 4px); z-index:80; min-width:210px; padding:4px; background:var(--surface);
     border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:var(--shadow); display:flex; flex-direction:column; }
   .tx-menu-panel button{ background:none; border:none; text-align:left; font:inherit; font-size:14px; color:var(--ink); padding:9px 10px; border-radius:8px; cursor:pointer; min-height:38px; }
   .tx-menu-panel button:hover, .tx-menu-panel button:focus-visible{ background:var(--surface-2); }
-  .bulk-bar{ display:flex; align-items:center; gap:6px 10px; flex-wrap:wrap; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:5px 8px; margin-bottom:6px; font-size:13px; }
+  .bulk-bar{ display:flex; align-items:center; gap:4px 8px; flex-wrap:wrap; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:3px 6px; margin-bottom:4px; font-size:13px; }
   .bulk-bar .bulk-group{ display:inline-flex; gap:4px; align-items:center; }
-  .bulk-bar input[type=text], .bulk-bar select{ min-height:34px; padding:4px 8px; font-size:13.5px; width:auto; max-width:170px; }
-  .bulk-bar button.btn.small{ min-height:34px; padding:0 10px; }
-  .tx-filters{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:6px 10px; padding:8px 10px; margin-bottom:8px;
+  .bulk-bar input[type=text], .bulk-bar select{ min-height:30px; padding:2px 8px; font-size:13px; width:auto; max-width:160px; }
+  .bulk-bar button.btn.small{ min-height:30px; padding:0 9px; font-size:12.5px; }
+  .tx-filters{ display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; padding:5px 6px; margin-bottom:6px;
     background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-sm); }
   .tx-filters[hidden]{ display:none; }
-  .tx-filters .field{ margin:0; }
-  .tx-filters .tx-search{ grid-column:span 2; }
-  .tx-filters label{ font-size:12px; margin-bottom:2px; }
-  .tx-filters input[type=text], .tx-filters input[type=date], .tx-filters select{ min-height:34px; padding:4px 8px; font-size:14px; }
-  .tx-filter-checks{ grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:2px 16px; }
-  .tx-filter-checks label.chk{ font-size:13px; min-height:28px; }
+  .tx-filters input[type=text], .tx-filters input[type=date], .tx-filters select{ min-height:30px; padding:2px 8px; font-size:13px; width:auto; border-width:1px; }
+  .tx-filters select{ max-width:190px; }
+  .tx-filters .tx-search{ position:relative; flex:1 1 220px; }
+  .tx-filters .tx-search input{ width:100%; }
+  .tx-search-clear{ position:absolute; right:2px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); font-size:14px; cursor:pointer; padding:2px 6px; line-height:1; }
+  .tx-filters label.tx-date{ display:inline-flex; align-items:center; gap:4px; margin:0; font-size:12px; }
+  .tx-filters label.chk{ font-size:12.5px; min-height:28px; gap:5px; }
+  .tx-filters label.chk input{ width:15px; height:15px; }
+  /* Lignes du journal plus basses */
+  .tx-table td{ padding:4px 8px; }
+  .tx-table th{ padding-top:6px; padding-bottom:6px; }
+  .tx-table .cat-cell-btn{ min-height:26px; padding:3px 10px; font-size:12.5px; }
+  .tx-table button.icon-btn{ min-width:28px; height:28px; padding:0 4px; font-size:14px; }
+  .tx-table .tag{ padding:2px 8px; font-size:11px; }
   .card h2{ font-family:var(--font-display); font-size:18px; font-weight:700; letter-spacing:-.01em; margin:0 0 4px; }
   .card .sub{ color:var(--muted); font-size:13px; margin:0 0 14px; }
 
@@ -331,10 +341,10 @@
     text-decoration:underline; text-decoration-color:color-mix(in srgb, currentColor 35%, transparent); text-underline-offset:3px; }
   .link-btn:hover{ color:var(--green); text-decoration-color:currentColor; }
   .link-btn .go{ font-size:.85em; color:var(--muted); margin-left:4px; }
-  .filter-chip{ display:flex; align-items:center; gap:4px 10px; flex-wrap:wrap; padding:3px 4px 3px 10px; margin:0 0 6px; border-radius:var(--radius-sm);
-    background:color-mix(in srgb, var(--green) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--green) 35%, transparent); font-size:13px; }
-  .filter-chip > span{ flex:1 1 auto; }
-  .filter-chip button.btn.small{ min-height:28px; padding:0 10px; font-size:12.5px; }
+  .filter-chip{ display:flex; align-items:center; gap:4px 8px; padding:2px 3px 2px 10px; margin:0 0 6px; border-radius:var(--radius-pill);
+    background:color-mix(in srgb, var(--green) 10%, var(--surface)); border:1px solid color-mix(in srgb, var(--green) 35%, transparent); font-size:12.5px; }
+  .filter-chip > span{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .filter-chip button.btn.small{ min-height:24px; padding:0 8px; font-size:12px; border-radius:var(--radius-pill); flex:0 0 auto; }
   .filter-chip strong{ color:var(--green); }
   .filter-chip:focus{ outline:none; }
   #filtersCount:not(:empty){ display:inline-grid; place-items:center; min-width:20px; height:20px; padding:0 6px; margin-left:2px;
@@ -395,7 +405,10 @@
     nav.tabs.main-tabs button .lbl{ display:none; }
     nav.tabs.main-tabs button .lbl-short{ display:block; }
     .tx-sticky-bar{ position:static; } /* sur petit écran, des filtres collés masqueraient la liste */
-    .tx-filters{ grid-template-columns:1fr 1fr; }
+    .tx-head{ flex-wrap:wrap; }
+    .tx-head .filter-chip{ order:3; flex-basis:100%; }
+    .tx-filters select, .tx-filters label.tx-date{ flex:1 1 140px; max-width:none; }
+    .tx-filters label.tx-date input{ flex:1; }
     .appbar{ margin-bottom:10px; }
   }
 
@@ -505,7 +518,8 @@
     <div class="card" style="padding-top:0;">
       <div class="tx-sticky-bar">
         <div class="tx-head">
-          <h2>Journal des opérations</h2>
+          <h2>Journal</h2>
+          <div id="activeFilterChip" class="filter-chip" role="status" style="display:none;"></div>
           <div class="tx-head-actions">
             <button class="btn small" onclick="openTxEditor()" title="Saisir une nouvelle opération">＋ Opération</button>
             <button class="btn secondary small" id="toggleFiltersBtn" aria-expanded="false" aria-controls="txFilters" onclick="toggleTxFilters()">🔎 Filtrer<span id="filtersCount"></span></button>
@@ -518,7 +532,6 @@
             </div>
           </div>
         </div>
-        <div id="activeFilterChip" class="filter-chip" role="status" style="display:none;"></div>
         <div id="bulkBar" class="bulk-bar" style="display:none;">
           <strong id="bulkCount"></strong>
           <span class="bulk-group">
@@ -538,51 +551,43 @@
         </div>
       </div>
       <div id="txFilters" class="tx-filters" hidden>
-        <div class="field tx-search">
-          <label for="filterSearch">Recherche</label>
-          <div style="position:relative;">
-            <input type="text" id="filterSearch" placeholder="Libellé, note, commentaire ou montant…" oninput="renderTransactions()" style="padding-right:28px;">
-            <button type="button" onclick="clearSearchFilter()" title="Effacer la recherche" aria-label="Effacer la recherche"
-                    style="position:absolute; right:4px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); font-size:15px; cursor:pointer; padding:2px 6px; line-height:1;">✕</button>
-          </div>
+        <div class="tx-search">
+          <label for="filterSearch" class="sr-only">Recherche</label>
+          <input type="text" id="filterSearch" placeholder="🔎 Libellé, note, commentaire ou montant…" oninput="renderTransactions()" style="padding-right:26px;">
+          <button type="button" class="tx-search-clear" onclick="clearSearchFilter()" title="Effacer la recherche" aria-label="Effacer la recherche">✕</button>
         </div>
-        <div class="field"><label for="filterCategory">Catégorie</label><select id="filterCategory" onchange="renderTransactions()"></select></div>
-        <div class="field"><label for="filterMonth">Mois</label><select id="filterMonth" onchange="renderTransactions()"></select></div>
-        <div class="field"><label for="filterFrom">Du</label><input type="date" id="filterFrom" onchange="renderTransactions()"></div>
-        <div class="field"><label for="filterTo">Au</label><input type="date" id="filterTo" onchange="renderTransactions()"></div>
-        <div class="field"><label for="filterSign">Sens</label>
-          <select id="filterSign" onchange="renderTransactions()">
-            <option value="">Entrées et sorties</option>
-            <option value="in">Revenus (hors virements)</option>
-            <option value="out">Dépenses (hors virements)</option>
-          </select>
-        </div>
-        <div class="field"><label for="filterPayment">Paiement</label><select id="filterPayment" onchange="renderTransactions()"></select></div>
-        <div class="field"><label for="filterChecked">Pointage</label>
-          <select id="filterChecked" onchange="renderTransactions()">
-            <option value="">Toutes</option>
-            <option value="yes">Pointées</option>
-            <option value="no">Non pointées</option>
-          </select>
-        </div>
-        <div class="field"><label for="sortBy">Tri</label>
-          <select id="sortBy" onchange="renderTransactions()">
-            <option value="date_desc">Date (récent → ancien)</option>
-            <option value="date_asc">Date (ancien → récent)</option>
-            <option value="label_asc">Libellé (A → Z)</option>
-            <option value="label_desc">Libellé (Z → A)</option>
-            <option value="amount_desc">Montant (haut → bas)</option>
-            <option value="amount_asc">Montant (bas → haut)</option>
-          </select>
-        </div>
-        <div class="tx-filter-checks">
-          <label class="chk"><input type="checkbox" id="groupByMonth" onchange="renderTransactions()" style="width:auto;"> Regrouper par mois</label>
-          <label class="chk"><input type="checkbox" id="onlyUncategorized" onchange="renderTransactions()" style="width:auto;"> Non catégorisées</label>
-        </div>
+        <label for="filterCategory" class="sr-only">Catégorie</label><select id="filterCategory" onchange="renderTransactions()"></select>
+        <label for="filterMonth" class="sr-only">Mois</label><select id="filterMonth" onchange="renderTransactions()"></select>
+        <label class="tx-date"><span>Du</span><input type="date" id="filterFrom" onchange="renderTransactions()"></label>
+        <label class="tx-date"><span>Au</span><input type="date" id="filterTo" onchange="renderTransactions()"></label>
+        <label for="filterSign" class="sr-only">Sens</label>
+        <select id="filterSign" onchange="renderTransactions()">
+          <option value="">Entrées et sorties</option>
+          <option value="in">Revenus (hors virements)</option>
+          <option value="out">Dépenses (hors virements)</option>
+        </select>
+        <label for="filterPayment" class="sr-only">Moyen de paiement</label><select id="filterPayment" onchange="renderTransactions()"></select>
+        <label for="filterChecked" class="sr-only">Pointage</label>
+        <select id="filterChecked" onchange="renderTransactions()">
+          <option value="">Pointées ou non</option>
+          <option value="yes">Pointées</option>
+          <option value="no">Non pointées</option>
+        </select>
+        <label for="sortBy" class="sr-only">Tri</label>
+        <select id="sortBy" onchange="renderTransactions()">
+          <option value="date_desc">Tri : date ↓</option>
+          <option value="date_asc">Tri : date ↑</option>
+          <option value="label_asc">Tri : libellé A→Z</option>
+          <option value="label_desc">Tri : libellé Z→A</option>
+          <option value="amount_desc">Tri : montant ↓</option>
+          <option value="amount_asc">Tri : montant ↑</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="groupByMonth" onchange="renderTransactions()" style="width:auto;"> Par mois</label>
+        <label class="chk"><input type="checkbox" id="onlyUncategorized" onchange="renderTransactions()" style="width:auto;"> À trier seulement</label>
       </div>
 
       <div class="table-scroll">
-        <table>
+        <table class="tx-table">
           <thead><tr>
             <th><input type="checkbox" id="selectAllChk" onchange="toggleSelectAll(this.checked)" style="width:auto;" aria-label="Tout sélectionner"><span class="sr-only">Sélection</span></th>
             <th>Date</th><th>Libellé</th><th class="num">Montant</th><th class="num" id="thBalance" title="Solde du compte après l'opération">Solde</th><th>Catégorie</th><th>Sous-catégorie</th><th>Origine</th><th title="Pointée (vérifiée sur le relevé bancaire)"><span aria-hidden="true">✓</span><span class="sr-only">Pointée</span></th><th><span class="sr-only">Actions</span></th>
@@ -2960,8 +2965,9 @@ function renderActiveFilterChip(){
   const rows = getFilteredTransactions();
   const total = rows.reduce((s,t)=>s+t.amount, 0);
   chip.style.display = "flex";
-  chip.innerHTML = `<span>🔎 <strong>${escapeHtml(parts[0])}</strong>${parts.length > 1 ? " · " + parts.slice(1).map(escapeHtml).join(" · ") : ""} — ${rows.length} opération(s), solde ${euro(total)}</span>
-    <button type="button" class="btn secondary small" onclick="clearTransactionFilters()">✕ Effacer</button>`;
+  const full = parts.join(" · ") + ` — ${rows.length} opération(s), solde ${euro(total)}`;
+  chip.innerHTML = `<span title="${escapeHtml(full)}"><strong>${escapeHtml(parts[0])}</strong>${parts.length > 1 ? " · " + parts.slice(1).map(escapeHtml).join(" · ") : ""} — ${rows.length} op. · ${euro(total)}</span>
+    <button type="button" class="btn secondary small" onclick="clearTransactionFilters()" title="Effacer le filtre" aria-label="Effacer le filtre">✕</button>`;
 }
 // Clic (ou Entrée) sur un poste de budget → opérations concernées.
 document.addEventListener("click", (e)=>{
@@ -5059,7 +5065,7 @@ function renderPaymentMethods(){
   const filter = document.getElementById("filterPayment");
   if(filter){
     const prev = filter.value;
-    filter.innerHTML = '<option value="">Tous</option><option value="__none__">Non renseigné</option>' + opts;
+    filter.innerHTML = '<option value="">Tous paiements</option><option value="__none__">Paiement non renseigné</option>' + opts;
     filter.value = (prev === "__none__" || (state.paymentMethods || []).some(m=>m.id===prev)) ? prev : "";
   }
   const bulk = document.getElementById("bulkPaymentSelect");
