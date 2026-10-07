@@ -50,6 +50,18 @@ Fonctionnement :
 - Si le Drive est vide (script tout neuf), les données locales y sont envoyées : elles ne sont jamais effacées.
 - Un ancien script qui ne renvoie pas le champ `updatedAt` fonctionne toujours, mais les conflits ne sont alors détectés qu'à la première connexion.
 
+## Protection contre la perte de données
+
+Plusieurs filets de sécurité se complètent :
+
+- **Rien n'est jamais remplacé en bloc.** Quand deux versions se rencontrent (deux appareils via Drive, deux onglets ouverts sur le même appareil, copie de secours), elles sont fusionnées élément par élément. Seule une suppression que vous avez faite retire quelque chose ; ce qu'une version aurait perdu est conservé puis renvoyé.
+- **Écriture protégée sur Drive** (script version 2) : le script refuse une écriture si Drive a changé entre-temps (l'appli fusionne puis réessaie), refuse de vider toutes les opérations sans suppression volontaire, et garde chaque jour une copie dans le dossier « Comptes famille - sauvegardes » de votre Drive (30 jours). L'appli signale un script à mettre à jour.
+- **Copie de secours locale** (IndexedDB) : si le navigateur refuse d'enregistrer (stockage plein) ou si les données locales sont effacées ou abîmées, l'appli repart de cette copie. Un bandeau rouge signale tout échec d'enregistrement ; des données illisibles ne sont jamais écrasées.
+- **Points de restauration** (Réglages) : un par jour d'utilisation pendant 14 jours, plus un avant chaque opération lourde (import d'une sauvegarde, réinitialisation, suppression d'un import, d'un compte ou d'une sélection, synchronisation qui supprime beaucoup d'opérations). Restaurables ou téléchargeables d'un clic.
+- **Envoi immédiat** des modifications quand la page est masquée ou fermée, et récupération immédiate de celles des autres appareils quand elle revient au premier plan.
+- **Horloge protégée** : un appareil dont l'heure retarde ne voit pas ses modifications écartées.
+- Et toujours : ↶ Annuler (15 étapes) et la sauvegarde manuelle exportable.
+
 ## Sauvegarde dans un dossier OneDrive, Dropbox… (optionnel)
 
 Sur ordinateur avec Chrome ou Edge, Réglages → « 📁 Sauvegarde automatique dans un dossier » : choisissez un fichier dans votre dossier OneDrive synchronisé, et l'application y réécrit la sauvegarde après chaque modification. C'est une sauvegarde à sens unique (elle ne synchronise pas plusieurs appareils) ; « Restaurer depuis ce fichier » la recharge. Une connexion directe à l'API OneDrive demanderait d'enregistrer l'application auprès de Microsoft (Azure) et n'est pas fournie.
