@@ -527,6 +527,7 @@
               <button type="button" class="btn secondary small" id="txMoreBtn" aria-label="Autres actions" title="Autres actions" aria-haspopup="true" aria-expanded="false" aria-controls="txMorePanel" onclick="toggleTxMenu()">⋯</button>
               <div class="tx-menu-panel" id="txMorePanel" hidden>
                 <button type="button" onclick="closeTxMenu(); reapplyRules()">📏 Appliquer les règles</button>
+                <button type="button" onclick="closeTxMenu(); openDuplicateFinder()">🧹 Chercher les doublons</button>
                 <button type="button" onclick="closeTxMenu(); exportCsv()" title="Exporte les opérations affichées (compte et filtres en cours)">⭳ Export CSV</button>
               </div>
             </div>
@@ -1565,23 +1566,50 @@ function mergeTombstones(a, b, now){
   return out;
 }
 
-/* Deux versions d'une même opération : la plus récente l'emporte. Les commentaires des deux sont
-   réunis (deux personnes peuvent commenter en même temps). À égalité (données d'avant cette
-   version, sans `mt`), une catégorie présente d'un seul côté n'est jamais perdue. */
-function mergeTxPair(a, b, deleted){
+/* Fusion CHAMP PAR CHAMP de deux versions d'un même enregistrement. Chaque champ modifié porte
+   l'heure de sa modification (`ft`) : si un appareil pas encore à jour pointe une opération, seul
+   le pointage vient de lui — la catégorie posée entre-temps sur un autre appareil est conservée.
+   (Auparavant, la version la plus récente remplaçait l'opération entière, catégorie comprise.) */
+const MERGE_META_KEYS = { mt: 1, ft: 1, comments: 1 };
+function fieldTime(o, k){ return (o.ft && Number(o.ft[k])) || 0; }
+function mergeFieldwise(a, b){
   const aTime = a.mt || 0, bTime = b.mt || 0;
   const win = bTime > aTime ? b : a, lose = win === a ? b : a;
   const out = Object.assign({}, win);
-  if(aTime === bTime && !out.categoryId && lose.categoryId){
-    out.categoryId = lose.categoryId;
-    out.source = lose.source;
+  const ft = {};
+  const keys = new Set(Object.keys(a).concat(Object.keys(b)));
+  [a, b].forEach(o=>{ if(o.ft) Object.keys(o.ft).forEach(k=>keys.add(k)); });
+  keys.forEach(k=>{
+    if(MERGE_META_KEYS[k]) return;
+    const tw = fieldTime(win, k), tl = fieldTime(lose, k);
+    if(tl > tw){
+      if(Object.prototype.hasOwnProperty.call(lose, k)) out[k] = lose[k]; else delete out[k];
+    }else if(!Object.prototype.hasOwnProperty.call(win, k) && !tw && Object.prototype.hasOwnProperty.call(lose, k)){
+      out[k] = lose[k]; // champ inconnu d'une version (ancienne appli) : conservé
+    }
+    const t = Math.max(tw, tl);
+    if(t) ft[k] = t;
+  });
+  if(Object.keys(ft).length) out.ft = ft; else delete out.ft;
+  const mt = Math.max(aTime, bTime);
+  if(mt) out.mt = mt; else delete out.mt;
+  return out;
+}
+/* Opérations : fusion champ par champ ; une catégorie présente d'un seul côté n'est jamais perdue
+   quand rien ne dit qu'elle a été retirée exprès ; les commentaires des deux côtés sont réunis. */
+function mergeTxPair(a, b, deleted){
+  const out = mergeFieldwise(a, b);
+  if(fieldTime(a, "categoryId") === fieldTime(b, "categoryId") && !out.categoryId){
+    const withCat = a.categoryId ? a : (b.categoryId ? b : null);
+    if(withCat){ out.categoryId = withCat.categoryId; out.source = withCat.source; }
   }
   if(Array.isArray(a.comments) || Array.isArray(b.comments)){
     const byId = new Map();
-    [win, lose].forEach(t=>(Array.isArray(t.comments) ? t.comments : []).forEach(c=>{
+    [a, b].forEach(t=>(Array.isArray(t.comments) ? t.comments : []).forEach(c=>{
       if(c && c.id != null && !byId.has(c.id) && !deleted["comment:" + c.id]) byId.set(c.id, c);
     }));
     out.comments = Array.from(byId.values()).sort((x,y)=>(x.at||0)-(y.at||0));
+    if(!out.comments.length) delete out.comments;
   }
   return out;
 }
@@ -1602,7 +1630,7 @@ function mergeRecords(coll, newerList, olderList, deleted){
       // Une catégorie « récupérée » (recréée faute de mieux) cède toujours la place à la vraie.
       else if(o.recovered && !other.recovered) pick = other;
       else if(other.recovered && !o.recovered) pick = o;
-      else if((other.mt || 0) > (o.mt || 0)) pick = other;
+      else pick = mergeFieldwise(o, other);
     }
     if(alive(pick)) result.push(pick);
   });
@@ -1663,6 +1691,56 @@ function detectPaymentMethod(label, methods){
     if(kws.some(k=> text.includes(" " + k + " "))) return m.id;
   }
   return "";
+}
+
+/* ---- Libellés « qui se ressemblent » : la banque peut écrire « CB CARREFOUR 12/03 » puis
+   « CARTE X1234 CARREFOUR MARKET » pour la même opération (relevé provisoire puis définitif,
+   CSV puis OFX…). On compare les mots significatifs, sans chiffres ni mots bancaires génériques. ---- */
+const LABEL_NOISE = new Set(["CB","CARTE","VIR","VIREMENT","PRLV","PRELEVEMENT","PRELEV","SEPA","PAIEMENT","ACHAT","FACTURE",
+  "RETRAIT","DAB","CHQ","CHEQUE","INST","RECU","EMIS","DES","LES","AUX","PAR","POUR","SUR","REF","MOTIF","ECH","FRA","EUR",
+  "SAS","SARL","FRANCE","PAYPAL","APPLE","PAY","WWW","COM","CARD","DATE","NUM"]);
+function labelTokens(label){
+  return normalizeForMatch(label).replace(/[^A-Z]+/g, " ").split(" ").filter(w=> w.length >= 4 && !LABEL_NOISE.has(w));
+}
+function labelsLookAlike(a, b){
+  const na = normalizeForMatch(a).replace(/\s+/g, " ").trim(), nb = normalizeForMatch(b).replace(/\s+/g, " ").trim();
+  if(na && na === nb) return true;
+  const ta = new Set(labelTokens(a));
+  return labelTokens(b).some(w=> ta.has(w));
+}
+/* Paires d'opérations qui ressemblent à un doublon : même compte, même montant au centime, à
+   `maxDays` jours au plus, et libellés proches — ou bien l'une catégorisée et pas l'autre à deux
+   jours près (cas typique d'un relevé réimporté). Chaque opération n'apparaît qu'une fois. */
+function findDuplicatePairs(txs, maxDays, ignored){
+  const byKey = new Map();
+  txs.forEach(t=>{
+    if(!t || !t.date) return;
+    const k = t.accountId + "|" + Math.round(t.amount * 100);
+    (byKey.get(k) || byKey.set(k, []).get(k)).push(t);
+  });
+  const cands = [];
+  byKey.forEach(list=>{
+    if(list.length < 2) return;
+    list.sort((x, y)=> x.date.localeCompare(y.date));
+    for(let i = 0; i < list.length; i++){
+      for(let j = i + 1; j < list.length; j++){
+        const a = list[i], b = list[j];
+        const gap = daysBetween(a.date, b.date);
+        if(gap > maxDays) break;
+        if(ignored && ignored.has([a.id, b.id].sort().join("|"))) continue;
+        const alike = labelsLookAlike(a.label, b.label) || (!!a.bank && labelsLookAlike(a.bank.label, b.label)) || (!!b.bank && labelsLookAlike(a.label, b.bank.label));
+        const oneCategorized = !!a.categoryId !== !!b.categoryId;
+        if(alike || (oneCategorized && gap <= 2)) cands.push({ a, b, gap, alike });
+      }
+    }
+  });
+  cands.sort((x, y)=> (Number(y.alike) - Number(x.alike)) || (x.gap - y.gap));
+  const used = new Set();
+  return cands.filter(c=>{
+    if(used.has(c.a.id) || used.has(c.b.id)) return false;
+    used.add(c.a.id); used.add(c.b.id);
+    return true;
+  });
 }
 
 /* ---- Rapprochement d'une opération saisie à la main avec une ligne du relevé importé ----
@@ -2482,7 +2560,14 @@ async function flushPendingPersist(){
 /* Horodatage `mt` des enregistrements modifiés et pierres tombales des supprimés, par
    comparaison avec l'état au dernier enregistrement. Fait ici, en un seul endroit, plutôt que dans
    chacune des dizaines de fonctions qui modifient les données. */
-function recordJson(o){ return JSON.stringify(o, (k, v)=> k === "mt" ? undefined : v); }
+function recordJson(o){ return JSON.stringify(o, (k, v)=> (k === "mt" || k === "ft") ? undefined : v); }
+/* Champs qui diffèrent entre l'ancienne version (JSON) et la nouvelle d'un enregistrement. */
+function changedFields(prevJson, o){
+  let prev;
+  try{ prev = JSON.parse(prevJson); }catch(e){ return []; }
+  const keys = new Set(Object.keys(prev).concat(Object.keys(o)));
+  return Array.from(keys).filter(k=> k !== "mt" && k !== "ft" && JSON.stringify(prev[k]) !== JSON.stringify(o[k]));
+}
 function resetStampBaseline(){
   stampBaseline = {};
   MERGED_COLLECTIONS.forEach(c=>{
@@ -2507,7 +2592,15 @@ function stampModifiedRecords(){
     const next = new Map();
     (state[c] || []).forEach(o=>{
       const j = recordJson(o);
-      if(prev.get(o.id) !== j){ o.mt = now; delete state.deleted[c + ":" + o.id]; }
+      const before = prev.get(o.id);
+      if(before !== j){
+        o.mt = now;
+        if(before !== undefined){
+          const fields = changedFields(before, o);
+          if(fields.length){ o.ft = Object.assign({}, o.ft); fields.forEach(k=>{ o.ft[k] = now; }); }
+        }
+        delete state.deleted[c + ":" + o.id];
+      }
       next.set(o.id, j);
     });
     prev.forEach((j, id)=>{ if(!next.has(id)) state.deleted[c + ":" + id] = now; });
@@ -4165,10 +4258,13 @@ document.addEventListener("change", (e)=>{
   }
 });
 
+/* Même opération : même montant, à 2 jours près, et libellés identiques OU proches (la banque
+   change parfois le libellé entre deux relevés : sans cela, la réimportation créait une copie
+   « à trier » d'une opération déjà catégorisée). */
 function sameOperation(a, b){
-  return a.label.trim().toLowerCase() === b.label.trim().toLowerCase() &&
-    Math.abs(a.amount - b.amount) < 0.005 &&
-    !!a.date && !!b.date && daysBetween(a.date, b.date) <= 2;
+  return Math.abs(a.amount - b.amount) < 0.005 &&
+    !!a.date && !!b.date && daysBetween(a.date, b.date) <= 2 &&
+    labelsLookAlike(a.label, b.label);
 }
 /* Associe chaque entrée à AU PLUS une opération existante, et chaque opération existante à au
    plus une entrée : deux cafés identiques le même jour dans le relevé, alors qu'un seul est déjà
@@ -5201,6 +5297,80 @@ function openLinkTx(id){
       return true;
     }
   });
+}
+
+/* ---------------- Recherche des doublons ----------------
+   Une même opération présente deux fois (relevé réimporté avec un libellé ou une date un peu
+   différents, saisie manuelle + import…) : la copie récente apparaît « à trier » alors que
+   l'originale est catégorisée. On les montre côte à côte pour les fusionner. */
+const NOT_DUPLICATE_KEY = "familyBudget_notDuplicates";
+function ignoredDuplicatePairs(){
+  try{ return new Set(JSON.parse(lsGet(NOT_DUPLICATE_KEY) || "[]")); }catch(e){ return new Set(); }
+}
+function currentDuplicatePairs(){
+  return findDuplicatePairs(state.transactions, 4, ignoredDuplicatePairs());
+}
+/* Garde l'opération la plus complète et y reporte ce que l'autre avait en plus. */
+function mergeDuplicatePair(a, b){
+  if(isManualUnlinked(a) && isImportedTx(b)){ linkManualWithImported(a, b); return a; }
+  if(isManualUnlinked(b) && isImportedTx(a)){ linkManualWithImported(b, a); return b; }
+  const score = (t)=> (t.categoryId ? 4 : 0) + (t.comments ? 2 : 0) + (t.note ? 1 : 0) + (t.checked ? 1 : 0);
+  const keep = score(b) > score(a) ? b : a, drop = keep === a ? b : a;
+  if(!keep.categoryId && drop.categoryId){ keep.categoryId = drop.categoryId; keep.source = drop.source; }
+  if(!keep.paymentMethodId && drop.paymentMethodId) keep.paymentMethodId = drop.paymentMethodId;
+  if(!keep.note && drop.note) keep.note = drop.note;
+  if(drop.comments) keep.comments = (keep.comments || []).concat(drop.comments);
+  if(!keep.bank && drop.bank) keep.bank = drop.bank;
+  keep.checked = keep.checked || drop.checked;
+  state.transactions = state.transactions.filter(x=>x.id !== drop.id);
+  selectedIds.delete(drop.id);
+  return keep;
+}
+function openDuplicateFinder(){
+  const pairs = currentDuplicatePairs();
+  if(!pairs.length){
+    appAlert("Aucun doublon probable : pas deux opérations du même compte, du même montant, à quelques jours d'écart et aux libellés proches.", "🧹 Doublons");
+    return;
+  }
+  const catMap = categoryMap();
+  const side = (t)=>{
+    const cat = t.categoryId ? catMap.get(t.categoryId) : null;
+    return `<div style="min-width:0;"><div><strong>${escapeHtml(t.date)}</strong> · ${escapeHtml(t.label)}</div>
+      <div class="tx-meta">${cat ? `<span class="tag rule">${escapeHtml(categoryLabel(cat))}</span>` : '<span class="tag none">à trier</span>'}
+      ${t.batchId ? '<span class="tag import">fichier</span>' : '<span class="tag manual">saisie</span>'}${t.checked ? '<span class="tag manual">✓ pointée</span>' : ""}</div></div>`;
+  };
+  const html = `<p class="hint" style="margin:0 0 10px;">${pairs.length} paire(s) d'opérations semblent être la même opération enregistrée deux fois (même compte, même montant, ${"≤"} 4 jours d'écart). « Fusionner » garde la plus complète (catégorie, commentaires, note, pointage) et supprime l'autre ; un point de restauration est créé avant. Vérifiez chaque ligne : deux achats identiques à quelques jours d'intervalle peuvent être réels.</p>
+    <div class="table-scroll" style="max-height:52vh;"><table class="tx-table"><tbody>${pairs.map(p=>`<tr>
+      <td>${side(p.a)}</td><td>${side(p.b)}</td>
+      <td class="num" style="white-space:nowrap;">${euro(p.a.amount)}</td>
+      <td style="white-space:nowrap;"><button type="button" class="btn small" onclick="resolveDuplicate('${p.a.id}','${p.b.id}',true)">Fusionner</button>
+        <button type="button" class="btn secondary small" onclick="resolveDuplicate('${p.a.id}','${p.b.id}',false)">Pas un doublon</button></td>
+    </tr>`).join("")}</tbody></table></div>`;
+  openModal({ title: "🧹 Doublons probables", html, wide: true, confirmLabel: `Fusionner les ${pairs.length}`, cancelLabel: "Fermer", danger: true,
+    onConfirm: ()=>{
+      takeSnapshot(`Avant fusion de ${pairs.length} doublon(s)`);
+      currentDuplicatePairs().forEach(p=> mergeDuplicatePair(p.a, p.b));
+      schedulePersist();
+      renderAll();
+      appAlert(`${pairs.length} doublon(s) fusionné(s). Un point de restauration a été créé juste avant (Réglages), et ↶ Annuler reste possible.`);
+      return false;
+    }
+  });
+}
+function resolveDuplicate(idA, idB, merge){
+  const a = state.transactions.find(t=>t.id===idA), b = state.transactions.find(t=>t.id===idB);
+  if(!a || !b){ openDuplicateFinder(); return; }
+  if(merge){
+    takeSnapshot("Avant fusion d'un doublon");
+    mergeDuplicatePair(a, b);
+    schedulePersist();
+    renderAll();
+  }else{
+    const ign = ignoredDuplicatePairs();
+    ign.add([idA, idB].sort().join("|"));
+    lsSet(NOT_DUPLICATE_KEY, JSON.stringify(Array.from(ign).slice(-2000)));
+  }
+  openDuplicateFinder();
 }
 
 /* ---------------- Rapprochement bancaire ---------------- */
