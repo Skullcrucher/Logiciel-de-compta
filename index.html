@@ -101,6 +101,7 @@
   .brand-logo svg{ width:20px; height:20px; }
   .brand .minitel-only{ display:none; }
   .appbar-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .secret-input:not(.shown){ -webkit-text-security:disc; text-security:disc; }
   .drive-info{ font-size:11.5px; color:var(--muted); white-space:nowrap; }
   .drive-info.warn{ color:var(--terracotta); }
 
@@ -1109,12 +1110,22 @@
       </div>
       <div class="grid-form" style="margin-top:10px; margin-bottom:6px;">
         <div class="field" style="grid-column: span 2;">
-          <label>Lien de votre script Google (URL se terminant par /exec)</label>
-          <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+          <label for="scriptUrlInput">Lien de votre script Google (URL se terminant par /exec)</label>
+          <!-- Pas de champ « mot de passe » à côté : sinon le navigateur prend ce formulaire pour une
+               connexion et remet l'ANCIEN lien mémorisé comme « identifiant » dès qu'on touche au code. -->
+          <input type="text" id="scriptUrlInput" name="gs-exec-link" placeholder="https://script.google.com/macros/s/.../exec"
+                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="url"
+                 data-lpignore="true" data-1p-ignore data-form-type="other">
         </div>
         <div class="field">
-          <label>Code secret du script (recommandé)</label>
-          <input type="password" id="scriptTokenInput" placeholder="Voir README / google-apps-script.gs" autocomplete="off">
+          <label for="scriptTokenInput">Code secret du script (recommandé)</label>
+          <div style="position:relative;">
+            <input type="text" id="scriptTokenInput" name="gs-exec-code" class="secret-input" placeholder="La valeur de la propriété TOKEN"
+                   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   data-lpignore="true" data-1p-ignore data-form-type="other" style="padding-right:40px;">
+            <button type="button" class="icon-btn" id="tokenToggle" onclick="toggleTokenVisibility()" aria-pressed="false"
+                    title="Afficher le code" aria-label="Afficher le code secret" style="position:absolute; right:3px; top:50%; transform:translateY(-50%);">👁</button>
+          </div>
         </div>
       </div>
       <p class="hint" id="driveStatus" style="margin-top:2px;">Pas encore connecté. Suivez le tutoriel ci-dessous (10 minutes, une seule fois).</p>
@@ -2306,18 +2317,38 @@ function noteScriptVersion(reply){
 }
 function scriptIsOutdated(){ return (parseInt(lsGet(SCRIPT_VERSION_KEY) || "0", 10) || 0) === 1; }
 
+function toggleTokenVisibility(){
+  const input = document.getElementById("scriptTokenInput"), btn = document.getElementById("tokenToggle");
+  const shown = input.classList.toggle("shown");
+  btn.setAttribute("aria-pressed", shown ? "true" : "false");
+  btn.title = shown ? "Masquer le code" : "Afficher le code";
+  btn.setAttribute("aria-label", shown ? "Masquer le code secret" : "Afficher le code secret");
+}
+/* Fin reconnaissable du lien (identifiant du déploiement), pour savoir quel script est utilisé. */
+function scriptShortName(url){
+  const m = String(url || "").match(/\/s\/([^/]+)\/exec/);
+  return m ? "…" + m[1].slice(-8) + "/exec" : url;
+}
 function connectDrive(){
-  const url = document.getElementById("scriptUrlInput").value.trim();
+  const urlInput = document.getElementById("scriptUrlInput");
+  const url = urlInput.value.replace(/\s+/g, "");
   const token = document.getElementById("scriptTokenInput").value.trim();
   if(!url){ appAlert("Collez d'abord le lien de votre script Google (se terminant par /exec)."); return; }
   let parsed;
   try{ parsed = new URL(url); }catch(e){ appAlert("Ce lien n'est pas une adresse valide."); return; }
   if(parsed.protocol !== "https:"){ appAlert("Le lien du script doit commencer par https://"); return; }
-  if(url !== scriptUrl) setLastSyncedAt(0); // nouveau script : on ne sait rien de sa version
+  if(!/\/exec\/?$/.test(parsed.pathname)){
+    appAlert("Ce lien ne se termine pas par /exec. Ce doit être l'« URL de l'application Web » affichée après Déployer → Nouveau déploiement (ou Gérer les déploiements), et non l'adresse de l'éditeur du script (…/edit) ni le lien de test (…/dev).");
+    return;
+  }
+  const changed = url !== scriptUrl;
+  if(changed) setLastSyncedAt(0); // nouveau script : on ne sait rien de sa version
   scriptUrl = url;
   scriptToken = token;
   lsSet(SCRIPT_URL_KEY, scriptUrl);
   if(scriptToken) lsSet(SCRIPT_TOKEN_KEY, scriptToken); else lsDel(SCRIPT_TOKEN_KEY);
+  urlInput.value = scriptUrl;
+  document.getElementById("driveStatus").textContent = "Connexion à " + scriptShortName(scriptUrl) + "…";
   refreshFromDrive(true);
   startAutoRefresh();
 }
@@ -2401,7 +2432,7 @@ function markConnected(){
   driveSyncFailed = false;
   renderDriveInfo();
   showSyncBanner("google");
-  document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR") +
+  document.getElementById("driveStatus").textContent = "Connecté à " + scriptShortName(scriptUrl) + ". Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR") +
     (scriptIsOutdated() ? " — ⚠️ Votre script Google est une ancienne version : mettez-le à jour pour activer les protections contre la perte de données (tutoriel ci-dessous, « Vous modifiez le script plus tard ? »)." : "");
 }
 
