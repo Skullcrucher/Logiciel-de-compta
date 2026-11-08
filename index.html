@@ -101,6 +101,8 @@
   .brand-logo svg{ width:20px; height:20px; }
   .brand .minitel-only{ display:none; }
   .appbar-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .drive-info{ font-size:11.5px; color:var(--muted); white-space:nowrap; }
+  .drive-info.warn{ color:var(--terracotta); }
 
   nav.tabs.main-tabs{
     position:sticky; top:8px; z-index:70; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none;
@@ -465,6 +467,7 @@
       <span class="minitel-only"><b>3615</b>MESCOMPTES<span class="cursor" aria-hidden="true">&nbsp;</span></span>
     </div>
     <div class="appbar-actions">
+      <span class="drive-info" id="driveInfo" hidden></span>
       <span class="hint" id="backupHint" style="margin:0;" role="status">Une sauvegarde manuelle reste possible en complément.</span>
       <button class="btn secondary small" id="undoBtn" onclick="undoLastChange()" disabled title="Annuler la dernière modification (Ctrl+Z)">↶ Annuler</button>
     </div>
@@ -2218,7 +2221,33 @@ function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; 
 function lsSet(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 
-function setLastSyncedAt(v){ lastSyncedAt = v || 0; lsSet(LAST_SYNC_KEY, String(lastSyncedAt)); }
+function setLastSyncedAt(v){ lastSyncedAt = v || 0; lsSet(LAST_SYNC_KEY, String(lastSyncedAt)); renderDriveInfo(); }
+
+/* Petit rappel discret en haut : heure de la dernière sauvegarde présente sur Drive (faite par cet
+   appareil ou un autre) et de la prochaine synchronisation automatique. */
+let nextAutoSyncAt = 0;
+let driveSyncFailed = false;
+function fmtSyncTime(ms){
+  const d = new Date(ms);
+  if(isNaN(d)) return "";
+  const time = d.toLocaleTimeString("fr-FR", { hour:"2-digit", minute:"2-digit" });
+  return d.toDateString() === new Date().toDateString() ? time : d.toLocaleDateString("fr-FR", { day:"2-digit", month:"2-digit" }) + " " + time;
+}
+function renderDriveInfo(){
+  const el = document.getElementById("driveInfo");
+  if(!el) return;
+  if(!scriptUrl){ el.hidden = true; return; }
+  const last = lastSyncedAt ? "sauvegardé à " + fmtSyncTime(lastSyncedAt) : "pas encore sauvegardé";
+  let next;
+  if(persistTimer || persistInFlight) next = "envoi en cours…";
+  else if(nextAutoSyncAt) next = (driveSyncFailed ? "nouvel essai à " : "prochaine synchro à ") + fmtSyncTime(nextAutoSyncAt);
+  else next = "";
+  el.textContent = "☁️ Drive : " + last + (next ? " · " + next : "");
+  el.title = "Dernière sauvegarde enregistrée sur votre Google Drive" + (localDirty ? " — des modifications de cet appareil restent à envoyer" : "") +
+    ". Chaque modification est envoyée quelques secondes après ; Drive est en plus vérifié chaque minute.";
+  el.classList.toggle("warn", driveSyncFailed);
+  el.hidden = false;
+}
 function setDirty(v){ localDirty = !!v; lsSet(DIRTY_KEY, localDirty ? "1" : "0"); }
 
 function initStorage(){
@@ -2303,11 +2332,17 @@ function disconnectDrive(){
   showSyncBanner("local");
   document.getElementById("driveStatus").textContent = "Déconnecté. Vos données restent dans ce navigateur.";
   if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+  nextAutoSyncAt = 0;
+  renderDriveInfo();
 }
 
 function startAutoRefresh(){
   if(autoRefreshTimer) clearInterval(autoRefreshTimer);
+  nextAutoSyncAt = Date.now() + 60000;
+  renderDriveInfo();
   autoRefreshTimer = setInterval(()=>{
+    nextAutoSyncAt = Date.now() + 60000;
+    renderDriveInfo();
     // Ne pas interrompre une sélection de catégorie ou une fenêtre de dialogue en cours.
     const picker = document.getElementById("catMenuPopover");
     if(picker && picker.classList.contains("open")) return;
@@ -2363,6 +2398,8 @@ function applyRemote(remote){
 
 function markConnected(){
   storageMode = "google";
+  driveSyncFailed = false;
+  renderDriveInfo();
   showSyncBanner("google");
   document.getElementById("driveStatus").textContent = "Connecté. Dernière synchronisation : " + new Date().toLocaleTimeString("fr-FR") +
     (scriptIsOutdated() ? " — ⚠️ Votre script Google est une ancienne version : mettez-le à jour pour activer les protections contre la perte de données (tutoriel ci-dessous, « Vous modifiez le script plus tard ? »)." : "");
@@ -2479,6 +2516,8 @@ async function refreshFromDrive(isInitial){
       storageMode = "local";
       document.getElementById("driveStatus").textContent = "Échec de connexion : " + (e && e.message ? e.message : "erreur inconnue") + ". Vérifiez le lien, le code secret et que le déploiement autorise l'accès.";
     }
+    driveSyncFailed = true;
+    renderDriveInfo();
     showSyncBanner("error");
   }
 }
@@ -2531,6 +2570,8 @@ async function writeToDrive(force){
     }
   }catch(e){
     console.error(e);
+    driveSyncFailed = true;
+    renderDriveInfo();
     showSyncBanner("error", "⚠️ Synchronisation Google Drive impossible (" + (e && e.message ? e.message : "erreur") + "). Vos modifications sont gardées sur cet appareil et seront renvoyées automatiquement.");
   }
 }
@@ -2540,7 +2581,7 @@ function doPersistWrite({ force=false }={}){
   const prev = persistInFlight || Promise.resolve();
   const p = prev.then(()=>writeToDrive(force));
   persistInFlight = p;
-  p.finally(()=>{ if(persistInFlight === p) persistInFlight = null; });
+  p.finally(()=>{ if(persistInFlight === p) persistInFlight = null; renderDriveInfo(); });
   return p;
 }
 
@@ -2618,6 +2659,7 @@ function schedulePersist(){
   if(storageMode !== "google" || !scriptUrl) return;
   clearTimeout(persistTimer);
   persistTimer = setTimeout(()=>{ persistTimer = null; doPersistWrite(); }, 1200);
+  renderDriveInfo();
 }
 
 /* ================= Filets de sécurité contre la perte de données =================
