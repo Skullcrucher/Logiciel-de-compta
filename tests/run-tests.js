@@ -208,6 +208,30 @@ test("une opération perdue par Drive (écriture concurrente) est conservée à 
   assert.strictEqual(ctx.differsFrom(m, remote), true); // → à renvoyer vers Drive
 });
 
+test("un appareil pas à jour qui pointe l'opération ne retire pas la catégorie posée ailleurs", ()=>{
+  // A catégorise à 100 ; B (qui ne le sait pas encore) pointe la même opération à 200.
+  const A = { updatedAt: 100, transactions: [{ id:"t", label:"X", amount:-5, categoryId:"c1", source:"manual", checked:false, mt:100, ft:{ categoryId:100, source:100 } }] };
+  const B = { updatedAt: 200, transactions: [{ id:"t", label:"X", amount:-5, categoryId:"", checked:true, mt:200, ft:{ checked:200 } }] };
+  [ctx.mergeSyncedStates(A, B, 1000), ctx.mergeSyncedStates(B, A, 1000)].forEach(m=>{
+    const t = J(m.transactions[0]);
+    assert.strictEqual(t.categoryId, "c1");
+    assert.strictEqual(t.checked, true);
+    assert.strictEqual(t.mt, 200);
+  });
+});
+test("une catégorie retirée exprès plus tard reste retirée", ()=>{
+  const A = { updatedAt: 100, transactions: [{ id:"t", categoryId:"c1", mt:100, ft:{ categoryId:100 } }] };
+  const B = { updatedAt: 300, transactions: [{ id:"t", categoryId:"", mt:300, ft:{ categoryId:300 } }] };
+  assert.strictEqual(J(ctx.mergeSyncedStates(A, B, 1000).transactions[0]).categoryId, "");
+});
+test("même opération catégorisée différemment des deux côtés : la plus récente l'emporte", ()=>{
+  const A = { updatedAt: 100, transactions: [{ id:"t", categoryId:"c1", mt:150, ft:{ categoryId:150 } }] };
+  const B = { updatedAt: 300, transactions: [{ id:"t", categoryId:"c2", note:"n", mt:300, ft:{ note:300, categoryId:120 } }] };
+  const t = J(ctx.mergeSyncedStates(A, B, 1000).transactions[0]);
+  assert.strictEqual(t.categoryId, "c1");
+  assert.strictEqual(t.note, "n");
+});
+
 console.log("Moyens de paiement et rapprochement");
 test("détection du moyen de paiement d'après le libellé", ()=>{
   const methods = [
@@ -223,6 +247,25 @@ test("rapprochement : même montant, la saisie la plus proche en date, une seule
   const entries = [ { amount:-50, date:"2026-03-11" }, { amount:-50, date:"2026-03-12" }, { amount:-20, date:"2026-06-30" }, null ];
   const r = ctx.matchManualEntries(entries, manual, 60).map(m=>m && m.id);
   assert.deepStrictEqual(r, ["m2", "m1", null, null]);
+});
+
+console.log("Doublons");
+test("libellés proches d'une même opération", ()=>{
+  assert.ok(ctx.labelsLookAlike("CB CARREFOUR 12/03", "CARTE X1234 CARREFOUR MARKET"));
+  assert.ok(ctx.labelsLookAlike("PRLV SEPA EDF CLIENTS", "PRELEVEMENT EDF CLIENTS PARTICULIERS"));
+  assert.ok(!ctx.labelsLookAlike("CB BOULANGERIE PAUL", "CB PHARMACIE CENTRE"));
+  assert.ok(!ctx.labelsLookAlike("VIR SEPA", "PRLV SEPA")); // mots bancaires génériques seulement
+});
+test("recherche des doublons : paire évidente trouvée, abonnements mensuels ignorés", ()=>{
+  const txs = [
+    { id:"a", accountId:"x", amount:-42.1, date:"2026-03-01", label:"CB CARREFOUR 01/03", categoryId:"c" },
+    { id:"b", accountId:"x", amount:-42.1, date:"2026-03-02", label:"CARTE CARREFOUR MARKET", categoryId:"" },
+    { id:"n1", accountId:"x", amount:-13.49, date:"2026-03-05", label:"NETFLIX", categoryId:"c" },
+    { id:"n2", accountId:"x", amount:-13.49, date:"2026-04-05", label:"NETFLIX", categoryId:"" },
+    { id:"o", accountId:"y", amount:-42.1, date:"2026-03-01", label:"CB CARREFOUR 01/03", categoryId:"" } ];
+  const pairs = J(ctx.findDuplicatePairs(txs, 4, new Set()).map(p=>[p.a.id, p.b.id]));
+  assert.deepStrictEqual(pairs, [["a","b"]]);
+  assert.strictEqual(ctx.findDuplicatePairs(txs, 4, new Set(["a|b"])).length, 0);
 });
 
 console.log("Tutoriel Google Drive");
